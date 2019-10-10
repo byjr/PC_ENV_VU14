@@ -1,19 +1,37 @@
+PACKAGE_DEPS_PATH = $(BUILD_ROOT)/packageDeps/$(notdir $(PACKAGE_PATH)).deps
+PACKAGE_DEPS_LIST = $(shell cat $(PACKAGE_DEPS_PATH))
 
-PACKAGE_DEPS_PATH	=$(BUILD_ROOT)/packageDeps/$(PACKAGE_NAME).deps
-PACKAGE_DEPS_LIST	=$(shell cat $(PACKAGE_DEPS_PATH))
-
-define build_cur_pkg
-	@make -C $(1) depend
-ifeq ($(PACKAGE_DEPS_LIST),"")	
+ifeq ($(COMMNAD),)
+	SHOW_COMMAND=install
 else
-	build_every_dep $(PACKAGE_DEPS_LIST)
+	SHOW_COMMAND=$(COMMNAD)
 endif
+
+define show_tip
+	@echo [$(SHOW_COMMAND) $(1)] >> /dev/tty
 endef
 
-define build_every_dep 
-	@echo $(foreach(pkg_path,$(1),build_cur_pkg $(pkg_path))
+define make_one_pkg
+	$(call show_tip,$(1) start ...)
+	make -C $(TOP_DIR)/$(1) $(COMMNAD) PACKAGE_PATH=$(TOP_DIR)/$(1)
+	$(call show_tip,$(1) finished)
 endef
 
+PACKAGE=$(patsubst $(TOP_DIR)/%,%,$(PACKAGE_PATH))
+
+ifeq ($(COMMNAD),sclean)
 all:
-	build_cur_pkg $(PACKAGE_PATH)
-
+	make -C $(PACKAGE_PATH) clean
+else ifeq ($(COMMNAD),build)
+all:
+	$(call show_tip,$(PACKAGE) start ...)
+	make -C $(PACKAGE_PATH) $(COMMNAD)
+	$(call show_tip,$(PACKAGE) finished)
+else
+all:
+	make -C $(PACKAGE_PATH) depend PACKAGE_DEPS_PATH=$(PACKAGE_DEPS_PATH)
+	$(foreach pkg,$(PACKAGE_DEPS_LIST),$(call make_one_pkg,$(pkg)))
+	$(call show_tip,$(PACKAGE) start ...)
+	make -C $(PACKAGE_PATH) $(COMMNAD)
+	$(call show_tip,$(PACKAGE) finished)
+endif	

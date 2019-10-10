@@ -2,25 +2,25 @@ TOP_DIR			:=$(shell pwd)
 BUILD_ROOT		:=$(TOP_DIR)/build
 STAGING_ROOT	:=$(TOP_DIR)/staging
 
-PACKAGE=$(patsubst %/,%,$(pkg))
-COMMNAD=$(cmd)
+export TOP_DIR BUILD_ROOT STAGING_ROOT
 
+PACKAGE=$(patsubst %/,%,$(pkg))
 PACKAGE_PATH		:= $(TOP_DIR)/$(PACKAGE)
 PACKAGE_NAME 		:= $(notdir $(PACKAGE_PATH))
-PACKAGE_DEPS_PATH	:=$(BUILD_ROOT)/packageDeps/$(PACKAGE_NAME).deps
-
-export TOP_DIR BUILD_ROOT STAGING_ROOT PACKAGE_PATH PACKAGE_NAME PACKAGE_DEPS_PATH
-
-
-LOG_PATH=$(BUILD_ROOT)/packageLogs/$(PACKAGE_NAME).log
 
 ifeq ($(showLog),y)
+	LOG_PATH=/dev/tty
+else
+	LOG_PATH=$(BUILD_ROOT)/packageLogs/$(PACKAGE_NAME).log
+endif
+
+ifeq ($(pkg),)
 all:
-	@make -C $(PACKAGE) $(COMMNAD)
+	@echo ERR:not special any package,please input package list! eg:package/libs/lzUtils
 else
 all:
 	@mkdir -p $(BUILD_ROOT)/packageLogs
-	@echo ---building $(PACKAGE) $(COMMNAD) started ...
-	@make -C $(PACKAGE) $(COMMNAD) > $(LOG_PATH) 2>&1
-	@echo ---building $(PACKAGE) $(COMMNAD) finished !
+	@make -C package PACKAGE_PATH=$(PACKAGE_PATH) COMMNAD=$(cmd) > $(LOG_PATH) 2>&1
 endif
+
+	

@@ -75,7 +75,7 @@ showAllVarExcute
 for i in "$@"
 do
 	if [ $preClean = y ];then
-		make pkg=$i cmd=clean
+		make pkg=$i cmd=sclean
 	fi
 	
 	make pkg=$i cmd=$commandType showLog=$logCtrl || exit -1;

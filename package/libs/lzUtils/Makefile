@@ -5,7 +5,7 @@ default:install
 
 depend:
 	echo -n "" > $(PACKAGE_DEPS_PATH)
-	echo package/libs/lzUtils >> $(PACKAGE_DEPS_PATH)
+	$(shell sync)
 
 build:
 	mkdir -p $(BUILD_DIR)
@@ -28,5 +28,5 @@ uninstall:
 rebuild:clean build
 
 reinst:uninstall install
-	
-.PHONY :default build clean install rebuild reinst
+
+.PHONY :default depend build clean install rebuild reinst

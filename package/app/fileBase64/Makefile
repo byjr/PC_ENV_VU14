@@ -3,6 +3,11 @@ include $(TOP_DIR)/include/package.mk
 
 default:install
 
+depend:
+	echo -n "" > $(PACKAGE_DEPS_PATH)
+	echo "package/libs/lzUtils" > $(PACKAGE_DEPS_PATH)
+	$(shell sync)
+
 build:
 	mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR) ;\
@@ -16,11 +21,11 @@ clean:
 install:build
 	make -C $(BUILD_DIR) install
 	
-uninstall: 
-	rm -rf $(STAGING_DIR)/bin/$(PACKAGE_NAME)
+uninstall:
+	rm -rf $(STAGING_DIR)/bin/$(TARGET)
 	
 rebuild:clean build
 
-reinst:uninstall install	
-	
-.PHONY :default build clean install rebuild reinst
+reinst:uninstall install
+
+.PHONY :default depend build clean install rebuild reinst
