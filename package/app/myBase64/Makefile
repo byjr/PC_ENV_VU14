@@ -6,7 +6,7 @@ default:install
 depend:
 	echo -n "" > $(PACKAGE_DEPS_PATH)
 	echo "package/libs/lzUtils" > $(PACKAGE_DEPS_PATH)
-	$(shell sync)
+	sync
 
 build:
 	mkdir -p $(BUILD_DIR)

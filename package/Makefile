@@ -30,6 +30,7 @@ all:
 else
 all:
 	make -C $(PACKAGE_PATH) depend PACKAGE_DEPS_PATH=$(PACKAGE_DEPS_PATH)
+	@echo PACKAGE_DEPS_LIST:$(PACKAGE_DEPS_LIST)
 	$(foreach pkg,$(PACKAGE_DEPS_LIST),$(call make_one_pkg,$(pkg)))
 	$(call show_tip,$(PACKAGE) start ...)
 	make -C $(PACKAGE_PATH) $(COMMNAD)
