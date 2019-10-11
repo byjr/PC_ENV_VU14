@@ -16,7 +16,8 @@ endif
 
 ifeq ($(pkg),)
 all:
-	@echo ERR:not special any package,please input package list! eg:package/libs/lzUtils
+	@echo "	ERR:not special any package,please input package!"
+	@echo "	eg:make pkg=package/libs/lzUtils showLog=y cmd=rebuild"
 else
 all:
 	@mkdir -p $(BUILD_ROOT)/packageLogs

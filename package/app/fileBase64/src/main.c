@@ -85,9 +85,9 @@ size_t base64Decode(char *base64,size_t baseSize,char * bin,size_t binSize){
     }
     return j;
 }
-#define s_inf(x...) printf("\e[1;42mINF [%s:%d]:\e[0m",__FILE__,__LINE__);printf(x);printf("\n");
-#define s_err(x...) printf("\e[1;41mERR [%s:%d]:\e[0m",__FILE__,__LINE__);printf(x);printf("\n");
-#define s_dbg(x...) printf("\e[1;43mDBG [%s:%d]:\e[0m",__FILE__,__LINE__);printf(x);printf("\n");
+#define s_inf(x...) printf("\e[1;42mINF\e[0m [%s:%d]:",__FILE__,__LINE__);printf(x);printf("\n");
+#define s_err(x...) printf("\e[1;41mERR\e[0m [%s:%d]:",__FILE__,__LINE__);printf(x);printf("\n");
+#define s_dbg(x...) printf("\e[1;43mDBG\e[0m [%s:%d]:",__FILE__,__LINE__);printf(x);printf("\n");
 #define work_mode_is_encode() ({\
 	int res = 1;\
 	if(strcmp(work_mode,"encode")){\
