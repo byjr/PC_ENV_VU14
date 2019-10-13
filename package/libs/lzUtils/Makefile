@@ -1,11 +1,15 @@
 PACKAGE_VER		:= v1.0.0
+
+ifneq ($(TOP_DIR),)
 include $(TOP_DIR)/include/package.mk
+endif
+
+PACKAGE_DEPS_LIST	:= 
 
 default:install
 
 depend:
-	echo -n "" > $(PACKAGE_DEPS_PATH)
-	$(shell sync)
+	@echo $(PACKAGE_DEPS_LIST)
 
 build:
 	mkdir -p $(BUILD_DIR)

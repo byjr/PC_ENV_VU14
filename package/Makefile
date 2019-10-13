@@ -1,6 +1,3 @@
-PACKAGE_DEPS_PATH = $(BUILD_ROOT)/packageDeps/$(notdir $(PACKAGE_PATH)).deps
-PACKAGE_DEPS_LIST = $(shell cat $(PACKAGE_DEPS_PATH))
-
 ifeq ($(COMMNAD),)
 	SHOW_COMMAND=install
 else
@@ -29,9 +26,6 @@ all:
 	$(call show_tip,$(PACKAGE) finished)
 else
 all:
-	make -C $(PACKAGE_PATH) depend PACKAGE_DEPS_PATH=$(PACKAGE_DEPS_PATH)
-	@echo PACKAGE_DEPS_LIST:$(PACKAGE_DEPS_LIST)
-	$(foreach pkg,$(PACKAGE_DEPS_LIST),$(call make_one_pkg,$(pkg)))
 	$(call show_tip,$(PACKAGE) start ...)
 	make -C $(PACKAGE_PATH) $(COMMNAD)
 	$(call show_tip,$(PACKAGE) finished)

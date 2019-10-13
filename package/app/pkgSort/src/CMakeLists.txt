@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
-project(${PACKAGE_NAME})
+project(${PACKAGE_NAME} CXX)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 file(GLOB_RECURSE build_SOURCES
-	"*.c"
+	main.cpp
+	# test.cpp
 )
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
