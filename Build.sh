@@ -23,7 +23,7 @@ showAllVarExcute(){
 	echo preClean=$preClean
 	echo installAfterCompile=$installAfterCompile
 	echo outPath=$outPath
-	echo logCtrl=$logCtrl
+	echo V=$logCtrl
 	echo buildAllImg=$buildAllImg
 	echo compileAll=$compileAll
 	echo compileKernel=$compileKernel
@@ -46,7 +46,7 @@ do
 			shift 2;;
 		-d) copyTargetDir=y
 			shift;;				
-		-v) logCtrl=y
+		-v) V=s
 			shift;;			
 		--ck) clearKernel=y
 			shift;;				
