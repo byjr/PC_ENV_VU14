@@ -7,6 +7,9 @@ file(GLOB_RECURSE xTest_SOURCES
 )
 
 link_directories(${BUILD_DIR}/lzUtils)
+link_libraries(
+	lzUtils
+)
 
 add_executable(xTest ${xTest_SOURCES})
 
@@ -14,9 +17,6 @@ target_include_directories(xTest PUBLIC
 	"../lzUtils"
 )
 
-target_link_libraries(xTest
-	asound
-	lzUtils
-)
+
 
 install(TARGETS xTest RUNTIME DESTINATION "bin")
