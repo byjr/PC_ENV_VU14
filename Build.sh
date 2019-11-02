@@ -46,7 +46,7 @@ do
 			shift 2;;
 		-d) copyTargetDir=y
 			shift;;				
-		-v) V=s
+		-v) logCtrl=s
 			shift;;			
 		--ck) clearKernel=y
 			shift;;				
@@ -75,10 +75,9 @@ showAllVarExcute
 for i in "$@"
 do
 	if [ $preClean = y ];then
-		make pkg=$i cmd=sclean
-	fi
-	
-	make pkg=$i cmd=$commandType showLog=$logCtrl || exit -1;
+		make pkg=$i cmd=clean
+	fi	
+	make pkg=$i cmd=$commandType V=$logCtrl || exit -1;
 	
 	if [ $installAfterCompile = y ];then
 		make pkg=$i cmd=install
