@@ -1,3 +1,6 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
 #ifndef _FD_OP_H_1
 #define _FD_OP_H_1 1
 #include <sys/types.h>
@@ -129,10 +132,14 @@ int unlink(const char *path);//删除连接数
 //fdopen fd->fp
 //fileno fp->fd
 size_t fd_get_size(int fd);
+int path_get_size(size_t *p_size,char *path);
 int fd_read_file(char **p_buf,char *path);
 char *fd_mmap_for_read(const char *path,size_t* _bytes);
 int fd_write_file(char *path,char *buf,ssize_t size,char *op);
 int fd_cpoy_file(char *sPath,char *dPath);
 int fd_set_flag(int fd,int flag);
 int fd_clear_flag(int fd,int flag);
+#endif
+#ifdef __cplusplus
+	}
 #endif
