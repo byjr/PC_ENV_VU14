@@ -47,7 +47,7 @@ do
 		-d) copyTargetDir=y
 			shift;;				
 		-v) logCtrl=s
-			shift;;			
+			shift;;
 		--ck) clearKernel=y
 			shift;;				
 		--out) outPath=$2

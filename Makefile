@@ -21,5 +21,9 @@ all:
 	@mkdir -p $(BUILD_ROOT)/packageLogs
 	$(foreach i,$(ACTIVE_PKG_LIST),$(call make_one_pkg,$(i)) $(new_line))
 	@echo $(Hgreen)$(Execs)" all buid done ----------------- !"$(ColEnd)
+run:
+	@cd run_dir ;\
+	
+	
 
 	

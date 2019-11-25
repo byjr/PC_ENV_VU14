@@ -44,7 +44,9 @@ else
 	SHOW_COMMAND=$(COMMNAD)
 endif
 
-ifeq ($(PACKAGE),)
+ifeq ($(COMMNAD),build)
+ACTIVE_PKG_LIST=$(PACKAGE)
+else ifeq ($(PACKAGE),)
 ACTIVE_PKG_LIST=$(shell pkgSort -f .pkg_config)
 else
 ACTIVE_PKG_LIST=$(shell pkgSort -s $(PACKAGE))
