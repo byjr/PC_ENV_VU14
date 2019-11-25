@@ -14,7 +14,7 @@ link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 add_executable(${PACKAGE_NAME} ${build_SOURCES})
 
 target_link_libraries(${PACKAGE_NAME}
-	lzUtils pthread
+	lzUtils
 )
 
 install(TARGETS ${PACKAGE_NAME} RUNTIME DESTINATION "bin")

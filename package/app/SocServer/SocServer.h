@@ -10,11 +10,6 @@
 #include <unordered_map>
 #include <lzUtils/base.h>
 
-/// pipe path of audio stream for mpd
-#define IVS_ATTACHMENT_PIPE "http://localhost:8888/attach.mp4"
-#define IVS_STREAM_PIPE "http://localhost:8888/istream.mp3"
-#define HTTP_MUSIC_STREAM_PORT 8888
-
 enum WEBSERVER_ERROR {
     NO_ERROR = 0,
     ERROR_GETADDR = -1,
@@ -27,25 +22,6 @@ enum WEBSERVER_ERROR {
     ERROR_NOT_READABLE,
     ERROR_NOT_WRITEABLE,
 };
-struct mimetype {
-    const char *extn;
-    const char *mime;
-    const int   stream_type;
-};
-
-#define STREAM_NONE       -1
-#define STREAM_ATTACHMENT 0
-#define STREAM_ISTREAM    1
-#define STREAM_URI        2
-
-static struct mimetype supported_mime_types[] = {
-    { "attach.mp4",    " application/octet-stream",        STREAM_ATTACHMENT},
-    { "attach.aac",    "audio/mp4a-latm",   STREAM_ATTACHMENT},
-    { "istream.mp3",   "audio/mpeg",        STREAM_ISTREAM},
-    { "istream.aac",   "audio/mp4a-latm",   STREAM_ISTREAM},
-    { NULL, NULL,  STREAM_NONE}
-};
-
 class TCPSocket {
 protected:
     int m_sockfd;
@@ -65,7 +41,7 @@ public:
     void closeSocket();
 };
 
-class HttpClient : public TCPSocket {
+class SockClient : public TCPSocket {
     enum {
         RESPONSE_WAITING,
         RESPONSE_START,
@@ -76,15 +52,8 @@ private:
     std::thread m_threadResponse;
     int m_responseStep;
 
-private:
-    bool SearchHeaderEnd(char *searchBuf, int endIdx);
-    void Response404();
-    void ResponseMimeType(const char *mimeType);
-    void SendStreaming(const char* filename);
-    void SendStreaming(std::shared_ptr<std::istream> stream);
-
 public:
-    HttpClient(int sockfd) {
+    SockClient(int sockfd) {
         m_sockfd = sockfd;
         m_responseStep = RESPONSE_WAITING;
         FD_ZERO(&m_readfds);
@@ -92,19 +61,21 @@ public:
         FD_SET(m_sockfd, &m_readfds);
         FD_SET(m_sockfd, &m_writefds);
     }
-
+	std::string getCmdResult(const char *fmt, ...);
+	bool cmdResultParse(std::string& res);
+	void ResponseText(const char* txt);	
+	void HandleResponse(std::string &req) ;
     void HandleRequestThread();
     bool HandleRequest();
-    void HandleResponse(const char* requestHeader);
     void Stop();
     bool IsWaitingRequest() { return m_responseStep == RESPONSE_WAITING; }
     bool IsFinishResponse() { return m_responseStep == RESPONSE_FINISH; }
 };
 
-class WebServer : public TCPSocket {
+class SocServer : public TCPSocket {
 private:
     int m_bindPort;
-    std::list<HttpClient*> m_clients;
+    std::list<SockClient*> m_clients;
     std::thread m_mainLoopThread;
     std::shared_ptr<std::istream> m_stream;
 
@@ -112,8 +83,8 @@ private:
     int Bind();
     int Listen();
 public:
-    WebServer();
-    ~WebServer();	
+    SocServer();
+    ~SocServer();	
     int Run();
     void Stop();
 };
