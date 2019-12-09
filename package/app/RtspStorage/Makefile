@@ -1,13 +1,12 @@
+PACKAGE_VER		:= v1.0.0
+
 ifneq ($(TOP_DIR),)
 include $(TOP_DIR)/include/package.mk
 endif
 
-PACKAGE_DEPS_LIST	:= \
-	package/libs/lzUtils
-	
-PACKAGE_VER		:= v1.0.0
-	
-all:install
+PACKAGE_DEPS_LIST	:= 
+
+default:install
 
 depend:
 	@echo $(PACKAGE_DEPS_LIST)

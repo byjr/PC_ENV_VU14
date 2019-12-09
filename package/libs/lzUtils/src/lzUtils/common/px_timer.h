@@ -3,7 +3,9 @@
 #include <signal.h>
 #include <stdio.h>
 #include <errno.h>
+#ifndef __USE_XOPEN
 #define __USE_XOPEN
+#endif
 #include <time.h>
 #include <pthread.h>
 #include "misc.h"
