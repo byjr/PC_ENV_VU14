@@ -38,13 +38,13 @@ static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
            pkt->stream_index);
 }
 std::string RtspClient::getTimeStemp(){
-	#define TIME_LAY "20191205160355"
-	char buf[]=TIME_LAY;
+	#define FF_TIME_LAY "20191205160355"
+	char buf[]=FF_TIME_LAY;
 	struct timespec ts={0};
 	struct tm* timeinfo;
-	px_gettime(CLOCK_REALTIME,&ts);
+	clock_gettime(CLOCK_REALTIME,&ts);
 	timeinfo=localtime(&ts.tv_sec);
-	strftime(buf,sizeof(TIME_LAY),"%Y%m%d%H%M%S",timeinfo);
+	strftime(buf,sizeof(FF_TIME_LAY),"%Y%m%d%H%M%S",timeinfo);
 	return buf;
 }
 
@@ -217,7 +217,7 @@ int RtspClient::mediaPackageUp(PackPar* packPar){
     if(!(ofmt->flags & AVFMT_NOFILE)){
         ret = avio_open(&ofmt_ctx->pb,packPar->oPath.data(),AVIO_FLAG_WRITE);
         if(ret<0){
-            s_err("Could not open output URL '%s',error:%s",packPar->oPath,av_err2strc(ret));
+            s_err("Could not open output URL '%s',error:%s",packPar->oPath.data(),av_err2strc(ret));
 			goto exit;
         }
     }
