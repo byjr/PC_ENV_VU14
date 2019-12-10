@@ -51,7 +51,7 @@ std::string RtspClient::getTimeStemp(){
 int RtspClient::pullSteamLoop(){
     //使用TCP连接打开RTSP，设置最大延迟时间
     char errbuf[512]={0};
-    AVDictionary *avdic=NULL;  
+    AVDictionary *avdic = NULL;  
 	char option_key[]="rtsp_transport";  
 	char option_value[]="tcp";  
 	av_dict_set(&avdic,option_key,option_value,0);  
@@ -122,7 +122,6 @@ int RtspClient::pullSteamLoop(){
 				mBAStream_status = dumpSteamStatus::CYCW;
 			}
 			if(dumpSteamStatus::CYCW == mBAStream_status){
-				s_dbg("pPkt->pts=%u",pkt.pts);
 				mVbas->writeBefor(&pkt);
 				if(mParam->bakPath){
 					if(fp){
@@ -140,12 +139,10 @@ int RtspClient::pullSteamLoop(){
 					}				
 				}				
 			}else if(dumpSteamStatus::DUMP == mBAStream_status){
-				s_dbg("pPkt->pts=%u",pkt.pts);
 				if(anyStatus::DONE == mVbas->writeAfter(&pkt)){
 					mBAStream_status = dumpSteamStatus::START;
-					//启动打包和上传的线程					
-					std::string oPath = getTimeStemp();
-//					std::string oPath = "cut264";
+					std::string oPath = "cut264";
+					oPath += getTimeStemp();
 					oPath += mParam->oSufix;					
 					auto packPar = new PackPar();		
 					packPar->oPath = oPath;
@@ -156,9 +153,9 @@ int RtspClient::pullSteamLoop(){
 					});
 					m_trd.detach();
 					s_war("package %s start...",oPath.data());
-					while(1){sleep(1);}
+//					while(1){sleep(1);}
 				}
-			}			
+			}
 		}
 		if (pkt.stream_index == asIdx) {
 			s_inf("audio stream, packet size: %d", pkt.size);
@@ -166,8 +163,10 @@ int RtspClient::pullSteamLoop(){
 		av_packet_unref(&pkt);
 	}
 end:
+	avformat_close_input(&ifmt_ctx);
 	avformat_free_context(ifmt_ctx);
 	av_dict_free(&avdic);
+	s_err("%s thread exit done!!!",__func__);
 	return 0;
 }
 int RtspClient::mediaPackageUp(PackPar* packPar){
@@ -246,23 +245,21 @@ int RtspClient::mediaPackageUp(PackPar* packPar){
 		delete pPkt;
     }
 	av_write_trailer(ofmt_ctx);
-	s_inf("av_write_trailer dne");
-	exit(0);
+	s_inf("av_write_trailer done!!!");
+//	exit(0);
 	//将MP4 上传至FTP服务器
 		//...
 exit:
 	delete packPar;
-	avformat_close_input(&ifmt_ctx);
     //Close input
     if(ofmt_ctx && !(ofmt->flags & AVFMT_NOFILE)){
 		avio_close(ofmt_ctx->pb);
 	}
     avformat_free_context(ofmt_ctx);
-    if(ret<0 && ret != AVERROR_EOF)   {
-		av_strerror(ret,errbuf,sizeof(errbuf));
-		s_war("avformat_free_context error:%s",errbuf);
+    if(ret<0 && ret != AVERROR_EOF){
+		s_war("avformat_free_context error:%s",av_err2strc(ret));
         return -1;
-    }	
+    }s_inf("mediaPackageUp succeed exit!!!");
 	return 0;
 }
 int help_info(int argc ,char *argv[]){
@@ -315,8 +312,9 @@ int main(int argc,char *argv[]){
 	   }
 	}
 	s_inf("RCPara.iPath:%s",RCPara.iPath);
+	s_inf("RCPara.bakPath=%d",RCPara.bakPath);
 	s_inf("RCPara.fps=%d",RCPara.fps);
-	s_inf("ENOMEM:%d",AVERROR(ENOMEM))
+
 	signal(SIGUSR1,&sigHandle);
 	auto mCli = new RtspClient(&RCPara);
 	if(!mCli){
@@ -324,7 +322,7 @@ int main(int argc,char *argv[]){
 	}
 	g_RtspClientPtr = mCli;
 	for(;;){
-		sleep(1);
+		pause();
 	}
 	return 0;
 }

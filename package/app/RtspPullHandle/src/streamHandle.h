@@ -16,9 +16,9 @@ public:
 		mPkt->pts = pPkt->pts;
 		mPkt->dts =  pPkt->dts;
 		mPkt->pos = pPkt->pos;
-		mPkt->duration =  pPkt->duration;			
+		mPkt->duration =  pPkt->duration;
 		mPkt->stream_index = pPkt->stream_index;
-		mPkt->flags =  pPkt->flags;	
+		mPkt->flags =  pPkt->flags;
 	}
 	~anyPkt(){
 		delete[]mPkt->data;
@@ -70,7 +70,7 @@ public:
 		dPkt->data = new unsigned char[anyPkt->getPkt()->size];
 		memcpy(dPkt->data,anyPkt->getPkt()->data,anyPkt->getPkt()->size);
 		*ppPkt = dPkt;
-		s_inf("%s:ri=%d,pts=%lld,dts=%lld",__func__,ri,dPkt->pts,dPkt->dts);
+//		s_inf("%s:ri=%d,pts=%lld,dts=%lld",__func__,ri,dPkt->pts,dPkt->dts);
 //		s_inf("%s:ri=%d,pos=%d",__func__,ri,dPkt->pos);
 		getSync();
 		return true;
@@ -84,7 +84,7 @@ public:
 			ri = (ri + 1 < mMax) ? (ri +1) : 0;
 		}
 		auto newAnyPkt = new anyPkt(pPkt);
-		if(!newAnyPkt){			
+		if(!newAnyPkt){
 			return false;
 		}
 		s_inf("%s:wi=%d,pts=%lld,dts=%lld",__func__,wi,pPkt->pts,pPkt->dts);
@@ -104,7 +104,7 @@ public:
 		if(!newAnyPkt){			
 			return anyStatus::FAILED;
 		}
-		s_inf("wi=%d,pts=%lld,dts=%lld",wi,pPkt->pts,pPkt->dts);
+//		s_inf("wi=%d,pts=%lld,dts=%lld",wi,pPkt->pts,pPkt->dts);
 //		s_inf("%s:wi=%d,pos=%d",__func__,wi,pPkt->pos);
 		mVct[wi] = newAnyPkt;
 		wi = next;	
