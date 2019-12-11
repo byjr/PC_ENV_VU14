@@ -112,7 +112,7 @@ int RtspClient::pullSteamLoop(){
 		}
 		s_dbg("mBAStream_status=%d",mBAStream_status);
 		if (pkt.stream_index == vsIdx) {
-			s_dbg("video stream, packet : %d", pkt.size);
+			s_dbg("video stream, packet : %d", pkt.size);   
 			if(dumpSteamStatus::START == mBAStream_status ){
 				mVbas = new BAStream(10 * mParam->fps);
 				if(!mVbas){
