@@ -1,9 +1,12 @@
 #include <lzUtils/base.h>
 #include "main.h"
 int httpput_main(int argc,char *argv[]);
-
+int authput_main(int argc,char *argv[]);
+int fupload_main(int argc,char *argv[]);
 app_item_t item_tbl[]={
 	ADD_APP_ITEM(httpput,NULL)
+	ADD_APP_ITEM(authput,NULL)
+	ADD_APP_ITEM(fupload,NULL)	
 	{0}
 };
 int main(int argc, char *argv[]){

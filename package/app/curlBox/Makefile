@@ -24,7 +24,8 @@ clean:
 install:build
 	make -C $(BUILD_DIR) install
 	ln -sf curlBox $(STAGING_DIR)/bin/httpput
-	
+	ln -sf curlBox $(STAGING_DIR)/bin/authput
+	ln -sf curlBox $(STAGING_DIR)/bin/fupload
 uninstall:
 	rm -rf $(STAGING_DIR)/bin/$(TARGET)
 	
