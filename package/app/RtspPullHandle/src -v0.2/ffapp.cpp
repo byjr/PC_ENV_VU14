@@ -140,23 +140,39 @@ int RtspClient::pullSteamLoop(){
 					}				
 				}				
 			}else if(dumpSteamStatus::DUMP == mBAStream_status){
+#if 1		
 				if(anyStatus::DONE == mVbas->writeAfter(&pkt)){
 					mBAStream_status = dumpSteamStatus::START;
 					std::string oPath = "cut264_";
 					oPath += getTimeStemp();
-					oPath += "_slice.mp4";				
+					oPath += mParam->oSufix;					
 					auto packPar = new PackPar();		
 					packPar->oPath = oPath;
-					packPar->oUrl = mParam->oPath;
 					packPar->ifmt_ctx = ifmt_ctx;
 					packPar->vBAs = mVbas;
-					packPar->userpwd = mParam->userpwd;
 					std::thread m_trd = std::thread([this,packPar]() {
 						mediaPackageUp(packPar);
 					});
 					m_trd.detach();
 					s_war("package %s start...",oPath.data());
-				}				
+				}
+#else
+				if(anyStatus::DONE == mVbas->writeAfter(&pkt)){
+					mBAStream_status = dumpSteamStatus::START;
+					std::string oPath = "ftp://192.168.107.204//home/jonny/ftp_root/cut264_";
+					oPath += getTimeStemp();
+					oPath += mParam->oSufix;					
+					auto pushPar = new curlPushCliPar();
+					pushPar->mDstPath = oPath;
+					pushPar->userpwd = (char *)"jonny:111111";
+					pushPar->vBAs = mVbas;
+					std::thread m_trd = std::thread([this,pushPar]() {
+						curlPushUp(pushPar);
+					});
+					m_trd.detach();
+					s_war("package %s start...",oPath.data());					
+				}
+#endif					
 			}
 		}
 		if (pkt.stream_index == asIdx) {
@@ -194,11 +210,10 @@ int RtspClient::mediaPackageUp(PackPar* packPar){
 	AVFormatContext* ofmt_ctx = NULL;	
 	AVFormatContext* ifmt_ctx = packPar->ifmt_ctx;	
 	AVPacket *pPkt;
+	char errbuf[512]={0};
 	AVRational encTimebase={1,30};
 	AVRational stTimebase={1,30};
-	std::string outUrl = packPar->oUrl;
-	s_inf(outUrl.data());
-	curlPushCliPar* pushPar;
+	static size_t next_pts = 0;
 	#define ff_STREAM_DURATION (10.0)	
 	avformat_alloc_output_context2(&ofmt_ctx,NULL,NULL,packPar->oPath.data());
 	if(!ofmt_ctx){
@@ -211,7 +226,8 @@ int RtspClient::mediaPackageUp(PackPar* packPar){
 		AVCodec *codec = avcodec_find_decoder(in_stream->codecpar->codec_id);
 		out_stream = avformat_new_stream(ofmt_ctx,codec);
 		if(!out_stream) {
-			s_err("avformat_new_stream error:%s",av_err2strc(ret));	
+			av_strerror(ret,errbuf,sizeof(errbuf));
+			s_err("avformat_new_stream error:%s",errbuf);	
 			goto exit;
 		}
 		AVCodecContext *codec_ctx = avcodec_alloc_context3(codec);
@@ -241,7 +257,8 @@ int RtspClient::mediaPackageUp(PackPar* packPar){
 	packPar->vBAs->adjustTs();
     ret = avformat_write_header(ofmt_ctx,NULL);
     if(ret < 0){
-		s_err("avformat_write_header error:%s",av_err2strc(ret));
+		av_strerror(ret,errbuf,sizeof(errbuf));
+		s_err("avformat_write_header error:%s",errbuf);
         goto exit;
     }
 	for(;;){  	
@@ -262,12 +279,9 @@ int RtspClient::mediaPackageUp(PackPar* packPar){
     }
 	av_write_trailer(ofmt_ctx);
 	s_inf("av_write_trailer done!!!");
-	outUrl += packPar->oPath.data();				
-	pushPar = new curlPushCliPar();
-	pushPar->mDstPath = outUrl;
-	pushPar->mSrcPath = packPar->oPath;
-	pushPar->userpwd = packPar->userpwd;
-	curlPushUp(pushPar);
+//	exit(0);
+	//将MP4 上传至FTP服务器
+		//...
 exit:
 	delete packPar;
     //Close input
@@ -285,8 +299,7 @@ int help_info(int argc ,char *argv[]){
 	s_err("%s help:",get_last_name(argv[0]));
 	s_err("\t-s [input fps]");
 	s_err("\t-i [input path]");
-	s_err("\t-o [output url]");
-	s_err("\t-u [user:passwd]");
+	s_err("\t-o [output path]");
 	s_err("\t-l [logLvCtrl]");
 	s_err("\t-p [logPath]");
 	s_err("\t-h show help");
@@ -307,7 +320,7 @@ static void sigHandle(int signo){
 int main(int argc,char *argv[]){
 	RtspCliPar RCPara={0};
 	int opt = 0;
-	while ((opt = getopt_long_only(argc, argv,"u:b:s:i:o:l:p:h",NULL,NULL)) != -1) {
+	while ((opt = getopt_long_only(argc, argv,"b:s:i:o:l:p:h",NULL,NULL)) != -1) {
 		switch (opt) {
 		case 'l':
 			lzUtils_logInit(optarg,NULL);
@@ -325,20 +338,16 @@ int main(int argc,char *argv[]){
 			RCPara.iPath = optarg;
 			break;
 		case 'o':
-			RCPara.oPath = optarg;
-			break;
-		case 'u':
-			RCPara.userpwd = optarg;
-			break;
+			RCPara.oSufix = optarg;
+			break;			
 		default: /* '?' */
 			return help_info(argc ,argv);
 	   }
 	}
 	s_inf("RCPara.iPath:%s",RCPara.iPath);
-	s_inf("RCPara.oPath:%s",RCPara.oPath);
 	s_inf("RCPara.bakPath=%d",RCPara.bakPath);
 	s_inf("RCPara.fps=%d",RCPara.fps);
-	
+
 	signal(SIGUSR1,&sigHandle);
 	auto mCli = new RtspClient(&RCPara);
 	if(!mCli){

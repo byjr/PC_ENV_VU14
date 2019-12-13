@@ -21,10 +21,9 @@ enum class dumpSteamStatus{
 class RtspCliPar{
 public:
 	char* iPath;
-	char* oPath;	
+	char* oSufix;
 	size_t fps;
 	char* bakPath;
-	char* userpwd;
 };
 class PackPar{
 public:
@@ -32,8 +31,6 @@ public:
 	BAStream* aBAs;
 	AVFormatContext* ifmt_ctx;
 	std::string oPath;
-	std::string oUrl;
-	std::string userpwd;
 };
 
 class RtspClient{
