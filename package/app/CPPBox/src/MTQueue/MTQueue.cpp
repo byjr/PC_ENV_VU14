@@ -1,7 +1,90 @@
 #include "MTQueue.h"
 #include <thread>
 #include <unistd.h>
-#define XXXX 0
+#include <lzUtils/base.h>
+void MTQueue::setWaitExitState(){
+	mIsWaitWasExited = true;
+}
+MTQueue::MTQueue(MTQueuePar* par){
+	maxCount = par->mMax < q.max_size()?par->mMax:q.max_size();
+	s_inf("maxCount:%u",maxCount);
+	destroyOne = par->destroyOne;
+	mIsWaitWasExited = false;
+}
+void* MTQueue::read(){
+	std::unique_lock<std::mutex> locker(mu);
+	while (q.empty()){
+		cond.wait(locker);
+	}           
+	void* one = q.back();
+	q.pop_back();
+	return one;
+}
+void* MTQueue::read(size_t tdMsec){
+	std::unique_lock<std::mutex> locker(mu);
+	while(q.empty()){
+		if(cond.wait_for(locker,std::chrono::milliseconds(tdMsec),
+			[&]()->bool{return !q.empty();})){
+			break;
+		}
+		if(!mIsWaitWasExited){
+			continue;
+		}
+		return NULL;			
+	}
+	void* one = q.back();
+	q.pop_back();
+	return one;
+}	
+int MTQueue::write(void* one,size_t tdMsec){
+	std::unique_lock<std::mutex> locker(mu);
+	while(q.size() >= maxCount){
+		if(cond.wait_for(locker,std::chrono::milliseconds(tdMsec),
+			[&]()->bool{return q.size()<maxCount;})){
+			break;
+		}
+		if(!mIsWaitWasExited){
+			continue;
+		}
+		return -1;			
+	}
+	q.push_front(one);
+	locker.unlock();
+	cond.notify_one();
+	return 0;
+}
+int MTQueue::write(void* one){
+	std::unique_lock<std::mutex> locker(mu);
+	if(q.size() >= maxCount){
+		return -1;
+	}
+	q.push_front(one);
+	locker.unlock();
+	cond.notify_one();
+	return 0;
+}	
+void MTQueue::cycWrite(void* one){
+	std::unique_lock<std::mutex> locker(mu);
+	if(q.size() >= maxCount){
+		q.pop_back();
+	}
+	destroyOne(q.back()); 
+	q.push_front(one);
+	locker.unlock();
+	cond.notify_one();
+}
+void MTQueue::clear(){
+	std::unique_lock<std::mutex> locker(mu);
+	q.clear();
+}
+size_t MTQueue::getSize(){
+	std::unique_lock<std::mutex> locker(mu);
+	return q.size();
+}
+MTQueue::~MTQueue(){
+	q.clear();
+}
+#if 1
 class LineDate{
 public:
 	char *data;
@@ -15,6 +98,14 @@ public:
 		delete []data;	
 	}
 };
+static void LineDateDestroy(void *one){
+	auto mPtr = (LineDate*)one;
+	if(!mPtr) return ;
+	if(mPtr->data){
+		delete []mPtr->data;
+	}
+	delete mPtr;
+}
 class MTQueueWriterPar{	
 public:
 	MTQueue* pMQ;
@@ -47,11 +138,9 @@ public :
 					continue;
 				}
 				do{
-					res = mPar->pMQ->write(pData);	
+					res = mPar->pMQ->write(pData,1000);
 					if(res < 0){
-						// s_err("pMQ->write failed");
-						usleep(1000*10);
-						continue;
+						s_err("pMQ->write failed");
 					}				
 				}while(res < 0);
 			}while(!feof(fp));
@@ -113,10 +202,8 @@ public :
 #include <getopt.h>
 int help_info(int argc ,char *argv[]){
 	s_err("%s help:",get_last_name(argv[0]));
-	s_err("\t-s [input fps]");
 	s_err("\t-i [input path]");
 	s_err("\t-o [output url]");
-	s_err("\t-u [user:passwd]");
 	s_err("\t-l [logLvCtrl]");
 	s_err("\t-p [logPath]");
 	s_err("\t-h show help");
@@ -143,22 +230,30 @@ int MTQueue_main(int argc,char *argv[]){
 		default: /* '?' */
 			return help_info(argc ,argv);
 	   }
-	}	
-	MTQueue* pMQ = new MTQueue(10);
+	}
+	MTQueuePar MQPar = {
+		.mMax = 100,
+		.destroyOne = &LineDateDestroy,
+	};
+	MTQueue* pMQ = new MTQueue(&MQPar);
 	if(!pMQ){
 		s_err("newMTQueue failed!");
-		return NULL;
+		return -1;
 	}
 	readerPar.pMQ = writerPar.pMQ = pMQ;
 	auto mReader = new MTQueueReader(&readerPar);
 	if(!mReader){
 		s_err("new MTQueueReader failed!");
+		return -1;
 	}
 	auto mWriter = new MTQueueWriter(&writerPar);
 	if(!mReader){
 		s_err("new MTQueueWriter failed!");
+		return -1;
 	}
 	delete mWriter;
 	delete mReader;
 	delete pMQ;
+	return 0;
 }
+#endif
