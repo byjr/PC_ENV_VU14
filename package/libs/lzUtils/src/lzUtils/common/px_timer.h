@@ -136,10 +136,10 @@ long get_tsd(struct timespec *pt1,struct timespec *pt2,char lev);
 #define TIME_LAY 		"[2018-12-30 23:59:59]"
 #define TIME_FMT 		"[%Y-%m-%d %H:%M:%S]"
 #define TIME_LAY_NS  	".[000000001]"
-#define TIME_FMT_NS 	".[%09lu]"
+#define TIME_FMT_NS 	".[%09u]"
 
 #define show_rt_time(msg,show_func) ({\
-	char buf[]=TIME_LAY""TIME_LAY_NS ;\
+	char buf[]=TIME_LAY "" TIME_LAY_NS ;\
 	struct timespec ts={0};\
 	struct tm* timeinfo;\
 	px_gettime(CLOCK_REALTIME,&ts);\

@@ -21,8 +21,7 @@ enum class dumpSteamStatus{
 class RtspCliPar{
 public:
 	char* iPath;
-	char* oPath;	
-	size_t fps;
+	char* oPath;
 	char* bakPath;
 	char* userpwd;
 };
@@ -41,6 +40,7 @@ class RtspClient{
 	std::thread mPullTread;
 	int vsIdx;
 	int asIdx;
+	size_t mFps;
 	volatile dumpSteamStatus mBAStream_status;
 public:
 	RtspClient(RtspCliPar* par);

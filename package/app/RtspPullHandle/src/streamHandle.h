@@ -39,6 +39,12 @@ class anyStream{
 	size_t ri;
 	size_t wi;
 public:
+	int getRiFlag(){
+		if(!mVct[ri]){
+			return 0;
+		}
+		return mVct[ri]->getPkt()->flags;
+	}
 	size_t getMax(){
 		return mMax;
 	}
@@ -146,6 +152,9 @@ public:
 		delete befor;
 		delete after;
 	}
+	int getRiFlag(){
+		return befor->getRiFlag();
+	}	
 	bool writeBefor(AVPacket *pPkt){
 		return befor->cycWrite(pPkt);
 	}

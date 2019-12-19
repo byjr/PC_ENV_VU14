@@ -148,7 +148,7 @@ int my_popen_get(char *rbuf, int rbuflen, const char *cmd, ...){
 	}
 	return -1;
 }
-static void argv_free(char *argv[]){
+void argv_free(char *argv[]){
 	int i=0;
 	for(i=0;argv[i];i++){
 		free(argv[i]);
@@ -172,7 +172,7 @@ char *argv_to_argl(char *argv[]){
 	argl[rt_idx-1]='\0';
 	return argl;
 }
-
+#define match_char(ch) (ch==' '||ch=='\0'||ch=='\n')
 char** argl_to_argv(char argl[],int *pArgc){
 	int i=0,count=0;
 	if(!(argl && argl[0]))return NULL;
@@ -180,7 +180,10 @@ char** argl_to_argv(char argl[],int *pArgc){
 	if(!argv)return NULL;
 	argv[0]=argl;
 	for(i=0;;i++){
-		if(argl[i]==' '||argl[i]=='\0'||argl[i]=='\n'){
+		if(match_char(argl[i])){
+			while(argl[i] ==' ' && argl[i+1] == ' '){
+				i++;
+			}
 			count++;
 			argv=(char**)realloc(argv,(count+1)*sizeof(char *));
 			if(!argv)return NULL;

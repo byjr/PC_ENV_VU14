@@ -83,14 +83,14 @@ int RtspClient::pullSteamLoop(){
 		s_inf("type of the encoded data: %d", in_stream->codecpar->codec_id);
 		if (in_stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
 			vsIdx = i;
-			s_inf("The video frame in pixels: width: %d, height: %d, pixel format: %d",
-				in_stream->codecpar->width, in_stream->codecpar->height, in_stream->codecpar->format);
+			mFps = in_stream->avg_frame_rate.num/in_stream->avg_frame_rate.den;
+			s_inf("The video frame in pixels: width: %d, height: %d, pixel format: %d,fps:%d",
+				in_stream->codecpar->width, in_stream->codecpar->height, in_stream->codecpar->format,mFps);
 		} else if (in_stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
 			asIdx = i;
 			s_inf("audio sample format: %d", in_stream->codecpar->format);
 		}
-	}
-	
+	}	
 	AVPacket pkt;
 	mBAStream_status = dumpSteamStatus::START;
 	BAStream* mVbas = NULL;
@@ -115,7 +115,7 @@ int RtspClient::pullSteamLoop(){
 		if (pkt.stream_index == vsIdx) {
 			s_dbg("video stream, packet : %d", pkt.size);   
 			if(dumpSteamStatus::START == mBAStream_status ){
-				mVbas = new BAStream(10 * mParam->fps);
+				mVbas = new BAStream(10 * mFps);
 				if(!mVbas){
 					s_err("new BAStream failed!");
 					continue;
@@ -130,10 +130,12 @@ int RtspClient::pullSteamLoop(){
 					}				
 				}			
 			}else if(dumpSteamStatus::GETI == mBAStream_status){
-				if(pkt.flags & AV_PKT_FLAG_KEY){
+				if(mVbas->getRiFlag() & AV_PKT_FLAG_KEY){
 					mBAStream_status = dumpSteamStatus::DUMP;
-				}
-				mVbas->writeBefor(&pkt);
+					mVbas->writeAfter(&pkt);				
+				}else{
+					mVbas->writeBefor(&pkt);
+				}				
 				if(mParam->bakPath){
 					if(fp){
 						fwrite(pkt.data,1,pkt.size,fp);
@@ -199,7 +201,7 @@ int RtspClient::mediaPackageUp(PackPar* packPar){
 	std::string outUrl = packPar->oUrl;
 	s_inf(outUrl.data());
 	curlPushCliPar* pushPar;
-	#define ff_STREAM_DURATION (10.0)	
+	FILE* fp = NULL;
 	avformat_alloc_output_context2(&ofmt_ctx,NULL,NULL,packPar->oPath.data());
 	if(!ofmt_ctx){
 		s_err("avformat_alloc_output_context2 failed,oPath:%s",packPar->oPath.data());
@@ -244,6 +246,10 @@ int RtspClient::mediaPackageUp(PackPar* packPar){
 		s_err("avformat_write_header error:%s",av_err2strc(ret));
         goto exit;
     }
+	fp =fopen("bak_slice.264","wb");
+	if(!fp){
+		show_errno(0,"fopen");
+	}
 	for(;;){  	
 		getOnePkt = packPar->vBAs->readOne(&pPkt);
 		if(!getOnePkt){
@@ -253,13 +259,15 @@ int RtspClient::mediaPackageUp(PackPar* packPar){
 //		s_inf("pPkt->pts=%u,pPkt->dts=%u",pPkt->pts,pPkt->dts);
 //		  av_packet_rescale_ts(pPkt, encTimebase, stTimebase);
 //		  log_packet(ofmt_ctx, pPkt);
+		fwrite(pPkt->data,1,pPkt->size,fp);
 		ret = av_interleaved_write_frame(ofmt_ctx,pPkt);
 		if(ret < 0){
 			s_err("av_interleaved_write_frame error[%d]:%s",ret,av_err2strc(ret));
-		}
+		}		
 		delete []pPkt->data;
 		delete pPkt;
     }
+	fclose(fp);
 	av_write_trailer(ofmt_ctx);
 	s_inf("av_write_trailer done!!!");
 	outUrl += packPar->oPath.data();				
@@ -307,16 +315,13 @@ static void sigHandle(int signo){
 int main(int argc,char *argv[]){
 	RtspCliPar RCPara={0};
 	int opt = 0;
-	while ((opt = getopt_long_only(argc, argv,"u:b:s:i:o:l:p:h",NULL,NULL)) != -1) {
+	while ((opt = getopt_long_only(argc, argv,"u:b:i:o:l:p:h",NULL,NULL)) != -1) {
 		switch (opt) {
 		case 'l':
 			lzUtils_logInit(optarg,NULL);
 			break;
 		case 'p':
 			lzUtils_logInit(NULL,optarg);
-			break;
-		case 's':
-			RCPara.fps = atoi(optarg);
 			break;
 		case 'b':
 			RCPara.bakPath = optarg;
@@ -336,9 +341,7 @@ int main(int argc,char *argv[]){
 	}
 	s_inf("RCPara.iPath:%s",RCPara.iPath);
 	s_inf("RCPara.oPath:%s",RCPara.oPath);
-	s_inf("RCPara.bakPath=%d",RCPara.bakPath);
-	s_inf("RCPara.fps=%d",RCPara.fps);
-	
+	s_inf("RCPara.bakPath=%s",RCPara.bakPath);	
 	signal(SIGUSR1,&sigHandle);
 	auto mCli = new RtspClient(&RCPara);
 	if(!mCli){

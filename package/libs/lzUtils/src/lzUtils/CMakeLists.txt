@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
 project(${PACKAGE_NAME})
+
 if(ALSA_SRC_ENABLE STREQUAL "ON")
-	add_definitions(ALSA_MOUDLE_SRC="alsa_ctrl/*.c")
-	add_definitions(ALSA_MOUDLE_LIBS="asound")
+	set(ALSA_MOUDLE_SRC "alsa_ctrl/*.c")
+	set(ALSA_MOUDLE_LIBS "asound")
 endif()
 file(GLOB_RECURSE build_SOURCES
 	${ALSA_MOUDLE_SRC}
@@ -17,7 +18,7 @@ file(GLOB_RECURSE build_SOURCES
 	un_fifo_ops/*.c
 	user_fifo/*.c
 	user_timer/*.c
-	ut_socket/*.c
+	ut_socket/*.c	
 	vad_op/*.c
 )
 

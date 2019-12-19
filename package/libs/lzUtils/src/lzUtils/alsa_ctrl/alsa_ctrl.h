@@ -13,7 +13,7 @@ extern "C" {
 #define ALSA_MAX_BUFFER_TIME 500000
 
 typedef struct alsa_args_t{
-	char *device;
+	const char *device;
 	int sample_rate;
 	char channels;
 	char action;

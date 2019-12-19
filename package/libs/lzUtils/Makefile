@@ -11,7 +11,7 @@ default:install
 depend:
 	@echo $(PACKAGE_DEPS_LIST)
 
-CMAKE_OPTIONS+=-DALSA_SRC_ENABLE=OFF
+CMAKE_OPTIONS+=-DALSA_SRC_ENABLE=ON
 build:
 	mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR) ;\

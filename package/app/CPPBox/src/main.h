@@ -7,7 +7,7 @@ extern "C" {
 #define ADD_APP_ITEM(name,args) {#name,name##_main,args},
 
 typedef struct app_item_t{
-	char *app_name;
+	const char *app_name;
 	int (*app_main)(int argc, char *argv[]);
 	void *args;
 }app_item_t;

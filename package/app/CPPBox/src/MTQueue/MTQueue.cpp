@@ -1,89 +1,7 @@
-#include "MTQueue.h"
 #include <thread>
 #include <unistd.h>
 #include <lzUtils/base.h>
-void MTQueue::setWaitExitState(){
-	mIsWaitWasExited = true;
-}
-MTQueue::MTQueue(MTQueuePar* par){
-	maxCount = par->mMax < q.max_size()?par->mMax:q.max_size();
-	s_inf("maxCount:%u",maxCount);
-	destroyOne = par->destroyOne;
-	mIsWaitWasExited = false;
-}
-void* MTQueue::read(){
-	std::unique_lock<std::mutex> locker(mu);
-	while (q.empty()){
-		cond.wait(locker);
-	}           
-	void* one = q.back();
-	q.pop_back();
-	return one;
-}
-void* MTQueue::read(size_t tdMsec){
-	std::unique_lock<std::mutex> locker(mu);
-	while(q.empty()){
-		if(cond.wait_for(locker,std::chrono::milliseconds(tdMsec),
-			[&]()->bool{return !q.empty();})){
-			break;
-		}
-		if(!mIsWaitWasExited){
-			continue;
-		}
-		return NULL;			
-	}
-	void* one = q.back();
-	q.pop_back();
-	return one;
-}	
-int MTQueue::write(void* one,size_t tdMsec){
-	std::unique_lock<std::mutex> locker(mu);
-	while(q.size() >= maxCount){
-		if(cond.wait_for(locker,std::chrono::milliseconds(tdMsec),
-			[&]()->bool{return q.size()<maxCount;})){
-			break;
-		}
-		if(!mIsWaitWasExited){
-			continue;
-		}
-		return -1;			
-	}
-	q.push_front(one);
-	locker.unlock();
-	cond.notify_one();
-	return 0;
-}
-int MTQueue::write(void* one){
-	std::unique_lock<std::mutex> locker(mu);
-	if(q.size() >= maxCount){
-		return -1;
-	}
-	q.push_front(one);
-	locker.unlock();
-	cond.notify_one();
-	return 0;
-}	
-void MTQueue::cycWrite(void* one){
-	std::unique_lock<std::mutex> locker(mu);
-	if(q.size() >= maxCount){
-		q.pop_back();
-	}
-	destroyOne(q.back()); 
-	q.push_front(one);
-	locker.unlock();
-	cond.notify_one();
-}
-void MTQueue::clear(){
-	std::unique_lock<std::mutex> locker(mu);
-	q.clear();
-}
-size_t MTQueue::getSize(){
-	std::unique_lock<std::mutex> locker(mu);
-	return q.size();
-}
-MTQueue::~MTQueue(){
-	q.clear();
-}
+#include <cppUtils/MTQueue/MTQueue.h>
 #if 1
 class LineDate{
 public:
@@ -97,13 +15,11 @@ public:
 	~LineDate(){
 		delete []data;	
 	}
+	static void destroy(void *one);
 };
-static void LineDateDestroy(void *one){
+void LineDate::destroy(void *one){
 	auto mPtr = (LineDate*)one;
 	if(!mPtr) return ;
-	if(mPtr->data){
-		delete []mPtr->data;
-	}
 	delete mPtr;
 }
 class MTQueueWriterPar{	
@@ -138,7 +54,7 @@ public :
 					continue;
 				}
 				do{
-					res = mPar->pMQ->write(pData,1000);
+					res = mPar->pMQ->write(pData);
 					if(res < 0){
 						s_err("pMQ->write failed");
 					}				
@@ -170,10 +86,10 @@ public :
 			FILE *fp = fopen(mPar->path,"wb");
 			if(!fp){
 				show_errno(0,fopen);
-				return NULL;
+				return 0;
 			}
 			ssize_t res = 0;
-			LineDate* pData =NULL;
+			LineDate* pData =NULL;			
 			do{
 				pData = (LineDate*)mPar->pMQ->read(1000);
 				if(!pData){
@@ -233,7 +149,7 @@ int MTQueue_main(int argc,char *argv[]){
 	}
 	MTQueuePar MQPar = {
 		.mMax = 100,
-		.destroyOne = &LineDateDestroy,
+		.destroyOne = &LineDate::destroy,
 	};
 	MTQueue* pMQ = new MTQueue(&MQPar);
 	if(!pMQ){
@@ -250,7 +166,7 @@ int MTQueue_main(int argc,char *argv[]){
 	if(!mReader){
 		s_err("new MTQueueWriter failed!");
 		return -1;
-	}
+	}	
 	delete mWriter;
 	delete mReader;
 	delete pMQ;

@@ -30,6 +30,7 @@ extern int pkill(const char *name, int sig);
 extern size_t get_pids_by_name(const char *pidName,pid_t **pp_pid,size_t max);
 char** argl_to_argv(char argl[],int *pArgc);
 char *argv_to_argl(char *argv[]);
+void argv_free(char *argv[]);
 char *get_name_cmdline(char *name,size_t size);
 char *get_pid_cmdline(pid_t pid,size_t size);
 char *getPathtItem(const char *path,const char * delim,size_t n);

@@ -1,8 +1,12 @@
+killall RtspPullHandle 2> /dev/null
 RtspPullHandle -u jonny:111111 \
-	-i rtsp://192.168.63.7:8554/xjv.264 \
-	-o ftp://192.168.107.204//home/jonny/ftp_root/ -s 30 -l1111 &
-sleep 20
-killall -USR1 RtspPullHandle
+	-i rtsp://192.168.107.204:8554/ffdec.264 \
+	-o ftp://192.168.107.204//home/jonny/ftp_root/ -l1111 &
+while true
+do	
+	sleep 30
+	killall -USR1 RtspPullHandle
+done
 # sleep 20
 # killall RtspPullHandle
 # rm -rf pic_dir/*
