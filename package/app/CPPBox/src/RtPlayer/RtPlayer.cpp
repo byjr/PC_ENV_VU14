@@ -49,10 +49,9 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 	mPauseFlag = false;
 	mFullFlag = false;
 	mChunkBytes = mRec->mPar->sample_rate * mRec->bytes_per_frame / 1000 * mPar->mChunkTimeMs;
+	s_inf("mChunkBytes:%u",mChunkBytes);
 	mRecTrd = std::thread([this](){
-		char *framesBuf = (char*)alloca(mChunkBytes);
-		s_inf("mChunkBytes:%u",mChunkBytes);
-		s_inf("sozeof(framesBuf):%u",sizeof(framesBuf));
+		auto framesBuf = new char[mChunkBytes];
 		chunkData *chunk;
 		for(;;){
 			if(mPauseFlag){
@@ -63,7 +62,7 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 			if(rret != mChunkBytes){
 				s_err("alsa_ctrl_read failed,reset ...");
 				continue;
-			}
+			}s_dbg("rret:%d",rret);
 			chunk = new chunkData(framesBuf,rret);
 			if(!chunk){
 				s_err("new chunkData failed");
@@ -71,6 +70,7 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 			}
 			mFullFlag = mMTQ->cycWrite(chunk);
 		}
+		delete framesBuf;
 	});
 	while(!mFullFlag){
 		usleep(1000*10);

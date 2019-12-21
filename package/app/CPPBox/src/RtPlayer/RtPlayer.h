@@ -11,8 +11,6 @@ public:
 	MTQueuePar* pMTQPar;
 	size_t mChunkTimeMs;
 };
-#define PPERIOD_TMIE_MS 10
-#define PERIOD_BYTES ((48 * 2 * 2) * PPERIOD_TMIE_MS)
 class RtPlayer{
 	RtPlayerPar* mPar;
 	alsa_ctrl_t* mRec;

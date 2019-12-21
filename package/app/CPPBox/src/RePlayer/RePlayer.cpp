@@ -13,16 +13,18 @@ RePlayer::RePlayer(RePlayerPar* par){
 		s_err("alsa_ctrl_create recorder failed");
 		return ;
 	}
-	isPauseFlag = false;
+	mPauseFlag = false;
+	mChunkBytes = mRec->mPar->sample_rate * mRec->bytes_per_frame / 1000 * mPar->mChunkTimeMs;
+	s_inf("mChunkBytes:%u",mChunkBytes);
 	mTrd = std::thread([this](){
-		char framesBuf[PERIOD_BYTES];
+		auto framesBuf = new char[mChunkBytes];
 		for(;;){
-			if(isPauseFlag){
+			if(mPauseFlag){
 				usleep(1000*40);
 				continue;
 			}
-			ssize_t rret = alsa_ctrl_read_stream(mRec,framesBuf,PERIOD_BYTES);
-			if(rret != PERIOD_BYTES){
+			ssize_t rret = alsa_ctrl_read_stream(mRec,framesBuf,mChunkBytes);
+			if(rret != mChunkBytes){
 				s_err("alsa_ctrl_read failed,reset ...");
 				alsa_ctrl_reset(mRec,mPar->pRecPar);
 				continue;
@@ -34,6 +36,7 @@ RePlayer::RePlayer(RePlayerPar* par){
 				continue;
 			}
 		}
+		delete framesBuf;
 	});
 }
 RePlayer::~RePlayer(){
@@ -44,13 +47,13 @@ RePlayer::~RePlayer(){
 	alsa_ctrl_destroy(mPly);
 }
 void RePlayer::pause(){
-	isPauseFlag = true;
+	mPauseFlag = true;
 	alsa_ctrl_pause(mRec);
 	usleep(40*1000);
 	alsa_ctrl_pause(mPly);
 }
 void RePlayer::resume(){
-	isPauseFlag = false;
+	mPauseFlag = false;
 	alsa_ctrl_resume(mRec);
 	usleep(40*1000);
 	alsa_ctrl_resume(mPly);			
@@ -101,8 +104,9 @@ int RePlayer_main(int argc, char *argv[]){
 		.flags		 = 0,
 		.fmt		 = SND_PCM_FORMAT_S16_LE,
 	};
+	size_t chunkTimeMs = 10;
 	int opt = 0;
-	while ((opt = getopt_long_only(argc, argv, "i:o:l:ph",NULL,NULL)) != -1) {
+	while ((opt = getopt_long_only(argc, argv, "t:i:o:l:ph",NULL,NULL)) != -1) {
 		switch (opt) {
 		case 'l':
 			lzUtils_logInit(optarg,NULL);
@@ -116,6 +120,9 @@ int RePlayer_main(int argc, char *argv[]){
 		case 'o':
 			plyPar.device = optarg;
 			break;
+		case 't':
+			chunkTimeMs = atoi(optarg);	
+			break;			
 		default: /* '?' */
 			return help_info(argc ,argv);
 	   }
@@ -127,6 +134,7 @@ int RePlayer_main(int argc, char *argv[]){
 		.pRecPar = &recPar,
 		.pPlyPar = &plyPar,
 	};
+	mPar.mChunkTimeMs = chunkTimeMs;
 	RePlayer* mRtPlayer = new RePlayer(&mPar);
 	if(!mRtPlayer){
 		s_err("");
