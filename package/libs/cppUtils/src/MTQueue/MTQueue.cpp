@@ -63,15 +63,18 @@ int MTQueue::write(void* one){
 	cond.notify_one();
 	return 0;
 }	
-void MTQueue::cycWrite(void* one){
+bool MTQueue::cycWrite(void* one){
 	std::unique_lock<std::mutex> locker(mu);
+	bool fullFlag = false;
 	if(q.size() >= maxCount){
 		destroyOne(q.back());
 		q.pop_back();
-	}	
+		fullFlag = true;
+	}
 	q.push_front(one);
 	locker.unlock();
 	cond.notify_one();
+	return fullFlag;
 }
 void MTQueue::clear(){
 	std::unique_lock<std::mutex> locker(mu);

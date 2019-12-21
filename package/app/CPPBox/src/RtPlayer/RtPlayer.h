@@ -3,6 +3,7 @@
 #include <lzUtils/alsa_ctrl/alsa_ctrl.h>
 #include <cppUtils/MTQueue/MTQueue.h>
 #include <thread>
+#include <atomic>
 class RtPlayerPar{
 public:
 	alsa_args_t* pRecPar;
@@ -18,7 +19,8 @@ class RtPlayer{
 	std::thread mPlyTrd;
 	std::thread mRecTrd;
 	MTQueue* mMTQ;
-	volatile bool isPauseFlag;
+	std::atomic<bool> mPauseFlag;
+	std::atomic<bool> mFullFlag;
 public:
 	RtPlayer(RtPlayerPar* par);
 	~RtPlayer();

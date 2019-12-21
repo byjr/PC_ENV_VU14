@@ -205,7 +205,7 @@ static int _alsa_ctrl_write_stream(alsa_ctrl_t* ptr,
 		} else if (r == -EPIPE) {
 			snd_pcm_prepare(ptr->handle);
 			r = snd_pcm_recover(ptr->handle, r, 1);
-			s_dbg("EPIPE, buffer underrun.");
+			s_war("EPIPE, buffer underrun.");
 			if ( (r > 0) && (r <= c) ) {
 				r = snd_pcm_writei(ptr->handle, p, r );
 			}

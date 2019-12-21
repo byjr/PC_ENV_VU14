@@ -45,12 +45,13 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 		s_err("alsa_ctrl_create recorder failed");
 		return ;
 	}
-	isPauseFlag = false;
+	mPauseFlag = false;
+	mFullFlag = false;
 	mRecTrd = std::thread([this](){
 		char framesBuf[PERIOD_BYTES];
 		chunkData *chunk;
 		for(;;){
-			if(isPauseFlag){
+			if(mPauseFlag){
 				usleep(1000*100);
 				continue;
 			}
@@ -64,14 +65,16 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 				s_err("new chunkData failed");
 				continue;
 			}
-			mMTQ->cycWrite(chunk);
+			mFullFlag = mMTQ->cycWrite(chunk);
 		}
 	});
-	usleep(1000*1000);
+	while(!mFullFlag){
+		usleep(1000*10);
+	}
 	mPlyTrd = std::thread([this](){
 		chunkData *chunk;
 		for(;;){
-			if(isPauseFlag){
+			if(mPauseFlag){
 				usleep(1000*100);
 				continue;
 			}			
@@ -83,8 +86,8 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 			ssize_t wret = alsa_ctrl_write_stream(mPly,chunk->getData(),chunk->getSize());
 			if(wret != chunk->getSize()){
 				s_err("alsa_ctrl_read failed,reset ...");
-				continue;
 			}
+			delete chunk;
 		}
 	});
 }
@@ -100,13 +103,13 @@ RtPlayer::~RtPlayer(){
 	delete mMTQ;
 }
 void RtPlayer::pause(){
-	isPauseFlag = true;
+	mPauseFlag = true;
 	alsa_ctrl_pause(mRec);
 	alsa_ctrl_pause(mPly);
 	mMTQ->clear();
 }
 void RtPlayer::resume(){
-	isPauseFlag = false;
+	mPauseFlag = false;
 	alsa_ctrl_resume(mRec);
 	usleep(40*1000);
 	alsa_ctrl_resume(mPly);			
@@ -157,7 +160,7 @@ int RtPlayer_main(int argc, char *argv[]){
 		.fmt		 = SND_PCM_FORMAT_S16_LE,
 	};
 	MTQueuePar MTQPar = {
-		.mMax = 100,
+		.mMax = 4,
 		.destroyOne = &chunkData::destroy,
 	};
 	int opt = 0;

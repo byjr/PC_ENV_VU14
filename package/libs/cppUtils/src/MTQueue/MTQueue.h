@@ -22,7 +22,7 @@ public:
 	void* read(size_t tdMsec);
 	int write(void* one,size_t tdMsec);
 	int write(void* one);
-	void cycWrite(void* one);
+	bool cycWrite(void* one);
 	void clear();
 	size_t getSize();
 	void* get();
