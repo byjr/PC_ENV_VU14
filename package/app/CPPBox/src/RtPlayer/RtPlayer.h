@@ -22,6 +22,7 @@ class RtPlayer{
 	MTQueue* mMTQ;
 	std::atomic<bool> mPauseFlag;
 	std::atomic<bool> mFullFlag;
+	size_t mChunkBytes;
 public:
 	RtPlayer(RtPlayerPar* par);
 	~RtPlayer();

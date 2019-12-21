@@ -48,19 +48,19 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 	}
 	mPauseFlag = false;
 	mFullFlag = false;
+	mChunkBytes = mRec->mPar->sample_rate * mRec->bytes_per_frame / 1000 * mPar->mChunkTimeMs;
 	mRecTrd = std::thread([this](){
-		size_t chunk_bytes = mRec->mPar->sample_rate * 
-			mRec->bytes_per_frame / 1000 * mPar->mChunkTimeMs;
-		s_inf("chunk_bytes:%u",chunk_bytes);
-		char *framesBuf = (char*)alloca(chunk_bytes);
+		char *framesBuf = (char*)alloca(mChunkBytes);
+		s_inf("mChunkBytes:%u",mChunkBytes);
+		s_inf("sozeof(framesBuf):%u",sizeof(framesBuf));
 		chunkData *chunk;
 		for(;;){
 			if(mPauseFlag){
 				usleep(1000*100);
 				continue;
 			}
-			ssize_t rret = alsa_ctrl_read_stream(mRec,framesBuf,PERIOD_BYTES);
-			if(rret != PERIOD_BYTES){
+			ssize_t rret = alsa_ctrl_read_stream(mRec,framesBuf,mChunkBytes);
+			if(rret != mChunkBytes){
 				s_err("alsa_ctrl_read failed,reset ...");
 				continue;
 			}
