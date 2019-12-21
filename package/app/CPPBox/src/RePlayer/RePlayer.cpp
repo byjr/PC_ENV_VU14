@@ -90,12 +90,16 @@ int RePlayer_main(int argc, char *argv[]){
 		.sample_rate = 48000,
 		.channels 	 = 2,
 		.action 	 = SND_PCM_STREAM_CAPTURE,
+		.flags		 = 0,
+		.fmt		 = SND_PCM_FORMAT_S16_LE,
 	};
 	alsa_args_t plyPar={
 		.device 	 = "plughw:1,1",
 		.sample_rate = 48000,
 		.channels 	 = 2,
 		.action 	 = SND_PCM_STREAM_PLAYBACK,
+		.flags		 = 0,
+		.fmt		 = SND_PCM_FORMAT_S16_LE,
 	};
 	int opt = 0;
 	while ((opt = getopt_long_only(argc, argv, "i:o:l:ph",NULL,NULL)) != -1) {
