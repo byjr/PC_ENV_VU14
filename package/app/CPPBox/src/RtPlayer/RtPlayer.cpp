@@ -50,7 +50,7 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 	mFullFlag = false;
 	mRecTrd = std::thread([this](){
 		size_t chunk_bytes = mRec->mPar->sample_rate * 
-			mRec->bytes_per_sample / 1000 * mPar->mChunkTimeMs;
+			mRec->bytes_per_frame / 1000 * mPar->mChunkTimeMs;
 		s_inf("chunk_bytes:%u",chunk_bytes);
 		char *framesBuf = (char*)alloca(chunk_bytes);
 		chunkData *chunk;
