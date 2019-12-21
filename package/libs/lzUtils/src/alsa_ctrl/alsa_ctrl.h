@@ -29,7 +29,8 @@ typedef struct alsa_ctrl_t{
 	snd_pcm_uframes_t buffer_bytes;
 	size_t bytes_per_sample;
 	size_t bytes_per_frame;
-    volatile char abort_flag;	
+    volatile char abort_flag;
+	alsa_args_t* mPar;
 }alsa_ctrl_t;
 
 

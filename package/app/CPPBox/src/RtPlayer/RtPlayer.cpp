@@ -1,4 +1,5 @@
 #include <lzUtils/base.h>
+#include <alloca.h>
 #include "RtPlayer.h"
 class chunkData{
 	char *data;
@@ -48,7 +49,10 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 	mPauseFlag = false;
 	mFullFlag = false;
 	mRecTrd = std::thread([this](){
-		char framesBuf[PERIOD_BYTES];
+		size_t chunk_bytes = mRec->mPar->sample_rate * 
+			mRec->bytes_per_sample / 1000 * mPar->mChunkTimeMs;
+		s_inf("chunk_bytes:%u",chunk_bytes);
+		char *framesBuf = (char*)alloca(chunk_bytes);
 		chunkData *chunk;
 		for(;;){
 			if(mPauseFlag){
@@ -163,8 +167,9 @@ int RtPlayer_main(int argc, char *argv[]){
 		.mMax = 4,
 		.destroyOne = &chunkData::destroy,
 	};
+	size_t chunkTimeMs = 10;
 	int opt = 0;
-	while ((opt = getopt_long_only(argc, argv, "m:i:o:l:ph",NULL,NULL)) != -1) {
+	while ((opt = getopt_long_only(argc, argv, "t:m:i:o:l:ph",NULL,NULL)) != -1) {
 		switch (opt) {
 		case 'l':
 			lzUtils_logInit(optarg,NULL);
@@ -180,7 +185,10 @@ int RtPlayer_main(int argc, char *argv[]){
 			break;
 		case 'm':
 			MTQPar.mMax = atoi(optarg);	
-			break;			
+			break;
+		case 't':
+			chunkTimeMs = atoi(optarg);	
+			break;
 		default: /* '?' */
 			return help_info(argc ,argv);
 	   }
@@ -193,6 +201,7 @@ int RtPlayer_main(int argc, char *argv[]){
 		.pPlyPar = &plyPar,
 		.pMTQPar = &MTQPar,
 	};
+	mPar.mChunkTimeMs = chunkTimeMs;
 	RtPlayer* mRtPlayer = new RtPlayer(&mPar);
 	if(!mRtPlayer){
 		s_err("");

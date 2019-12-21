@@ -102,6 +102,7 @@ alsa_ctrl_t*  alsa_ctrl_create(alsa_args_t *args){
 		}
 		break;
 	}
+	ptr->mPar = args;
 	pthread_mutex_init(&ptr->mtx,NULL);
 	if(oret < 0){
 		free(ptr);

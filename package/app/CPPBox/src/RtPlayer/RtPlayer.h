@@ -9,6 +9,7 @@ public:
 	alsa_args_t* pRecPar;
 	alsa_args_t* pPlyPar;
 	MTQueuePar* pMTQPar;
+	size_t mChunkTimeMs;
 };
 #define PPERIOD_TMIE_MS 10
 #define PERIOD_BYTES ((48 * 2 * 2) * PPERIOD_TMIE_MS)
