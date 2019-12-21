@@ -14,6 +14,7 @@ link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 add_executable(${PACKAGE_NAME} ${build_SOURCES})
 
 target_link_libraries(${PACKAGE_NAME}
+	cppUtils
 	lzUtils
 	avformat
 	avcodec

@@ -18,8 +18,11 @@ class RtPlayer{
 	std::thread mPlyTrd;
 	std::thread mRecTrd;
 	MTQueue* mMTQ;
+	volatile bool isPauseFlag;
 public:
 	RtPlayer(RtPlayerPar* par);
 	~RtPlayer();
+	void pause();
+	void resume();
 };	
 #endif

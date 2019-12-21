@@ -115,7 +115,10 @@ int RtspClient::pullSteamLoop(){
 		if (pkt.stream_index == vsIdx) {
 			s_dbg("video stream, packet : %d", pkt.size);   
 			if(dumpSteamStatus::START == mBAStream_status ){
-				mVbas = new BAStream(10 * mFps);
+				MTQueuePar mPar={0};
+				mPar.mMax = 10 * mFps;
+				mPar.destroyOne = &frameDataDestroy;
+				mVbas = new BAStream(&mPar);
 				if(!mVbas){
 					s_err("new BAStream failed!");
 					continue;
@@ -123,18 +126,30 @@ int RtspClient::pullSteamLoop(){
 				mBAStream_status = dumpSteamStatus::CYCW;
 			}
 			if(dumpSteamStatus::CYCW == mBAStream_status){
-				mVbas->writeBefor(&pkt);
+				mVbas->writeBefor(pkt);
 				if(mParam->bakPath){
 					if(fp){
 						fwrite(pkt.data,1,pkt.size,fp);
 					}				
 				}			
 			}else if(dumpSteamStatus::GETI == mBAStream_status){
-				if(mVbas->getRiFlag() & AV_PKT_FLAG_KEY){
+				if(mVbas->getRiFlags() & AV_PKT_FLAG_KEY){
 					mBAStream_status = dumpSteamStatus::DUMP;
-					mVbas->writeAfter(&pkt);				
+					mVbas->writeAfter(pkt);
+					std::string oPath = mParam->oPath;
+					oPath += getTimeStemp();
+					oPath += ".264";					
+					curlPushCliPar* curlPar = new curlPushCliPar();
+					curlPar->mDstPath = oPath;
+					curlPar->userpwd = mParam->userpwd;s_inf("userpwd:%s", mParam->userpwd);
+					curlPar->vBAs = mVbas;
+					std::thread m_trd = std::thread([this,curlPar]() {
+						curlPushUp(curlPar);
+					});
+					m_trd.detach();
+					s_war("package %s start...",oPath.data());						
 				}else{
-					mVbas->writeBefor(&pkt);
+					mVbas->writeBefor(pkt);
 				}				
 				if(mParam->bakPath){
 					if(fp){
@@ -142,22 +157,9 @@ int RtspClient::pullSteamLoop(){
 					}				
 				}				
 			}else if(dumpSteamStatus::DUMP == mBAStream_status){
-				if(anyStatus::DONE == mVbas->writeAfter(&pkt)){
+				if(mVbas->writeAfter(pkt) < 0){
 					mBAStream_status = dumpSteamStatus::START;
-					std::string oPath = "cut264_";
-					oPath += getTimeStemp();
-					oPath += "_slice.mp4";				
-					auto packPar = new PackPar();		
-					packPar->oPath = oPath;
-					packPar->oUrl = mParam->oPath;
-					packPar->ifmt_ctx = ifmt_ctx;
-					packPar->vBAs = mVbas;
-					packPar->userpwd = mParam->userpwd;
-					std::thread m_trd = std::thread([this,packPar]() {
-						mediaPackageUp(packPar);
-					});
-					m_trd.detach();
-					s_war("package %s start...",oPath.data());
+					mVbas->setWaitExitCond();
 				}				
 			}
 		}
@@ -170,7 +172,7 @@ end:
 	avformat_close_input(&ifmt_ctx);
 	avformat_free_context(ifmt_ctx);
 	av_dict_free(&avdic);
-	s_err("%s thread exit done!!!",__func__);
+	s_war("%s thread exit done!!!",__func__);
 	return 0;
 }
 int RtspClient::curlPushUp(curlPushCliPar* curlPar){
@@ -188,107 +190,7 @@ int RtspClient::curlPushUp(curlPushCliPar* curlPar){
 	delete pushCli;
 	return 0;
 }
-int RtspClient::mediaPackageUp(PackPar* packPar){
-	int ret = -1 ;
-	bool getOnePkt = false;
-	AVStream* in_stream = NULL;
-	AVStream* out_stream = NULL;
-	AVFormatContext* ofmt_ctx = NULL;	
-	AVFormatContext* ifmt_ctx = packPar->ifmt_ctx;	
-	AVPacket *pPkt;
-	AVRational encTimebase={1,30};
-	AVRational stTimebase={1,30};
-	std::string outUrl = packPar->oUrl;
-	s_inf(outUrl.data());
-	curlPushCliPar* pushPar;
-	FILE* fp = NULL;
-	avformat_alloc_output_context2(&ofmt_ctx,NULL,NULL,packPar->oPath.data());
-	if(!ofmt_ctx){
-		s_err("avformat_alloc_output_context2 failed,oPath:%s",packPar->oPath.data());
-		return -1;
-	}
-	AVOutputFormat *ofmt = ofmt_ctx->oformat;
-	for(int i=0;i<ifmt_ctx->nb_streams;i++){//根据输入流创建输出流
-		in_stream = ifmt_ctx->streams[i];
-		AVCodec *codec = avcodec_find_decoder(in_stream->codecpar->codec_id);
-		out_stream = avformat_new_stream(ofmt_ctx,codec);
-		if(!out_stream) {
-			s_err("avformat_new_stream error:%s",av_err2strc(ret));	
-			goto exit;
-		}
-		AVCodecContext *codec_ctx = avcodec_alloc_context3(codec);
-		ret = avcodec_parameters_to_context(codec_ctx, in_stream->codecpar);
-		if (ret < 0){
-			s_err("avcodec_parameters_to_context error:%s",av_err2strc(ret));
-			goto exit;
-		}
-		codec_ctx->codec_tag = 0;
-		if (ofmt_ctx->oformat->flags & AVFMT_GLOBALHEADER){
-			codec_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-		}
-		ret = avcodec_parameters_from_context(out_stream->codecpar, codec_ctx);
-		if (ret < 0){
-			s_err("avcodec_parameters_from_context error:%s",av_err2strc(ret));
-			goto exit;
-		}
-	}	
-	av_dump_format(ofmt_ctx,0,packPar->oPath.data(),1);
-    if(!(ofmt->flags & AVFMT_NOFILE)){
-        ret = avio_open(&ofmt_ctx->pb,packPar->oPath.data(),AVIO_FLAG_WRITE);
-        if(ret<0){
-            s_err("Could not open output URL '%s',error:%s",packPar->oPath.data(),av_err2strc(ret));
-			goto exit;
-        }
-    }
-	packPar->vBAs->adjustTs();
-    ret = avformat_write_header(ofmt_ctx,NULL);
-    if(ret < 0){
-		s_err("avformat_write_header error:%s",av_err2strc(ret));
-        goto exit;
-    }
-	fp =fopen("bak_slice.264","wb");
-	if(!fp){
-		show_errno(0,"fopen");
-	}
-	for(;;){  	
-		getOnePkt = packPar->vBAs->readOne(&pPkt);
-		if(!getOnePkt){
-			s_war("packPar->vBAs->readOne done");
-			break;
-		}
-//		s_inf("pPkt->pts=%u,pPkt->dts=%u",pPkt->pts,pPkt->dts);
-//		  av_packet_rescale_ts(pPkt, encTimebase, stTimebase);
-//		  log_packet(ofmt_ctx, pPkt);
-		fwrite(pPkt->data,1,pPkt->size,fp);
-		ret = av_interleaved_write_frame(ofmt_ctx,pPkt);
-		if(ret < 0){
-			s_err("av_interleaved_write_frame error[%d]:%s",ret,av_err2strc(ret));
-		}		
-		delete []pPkt->data;
-		delete pPkt;
-    }
-	fclose(fp);
-	av_write_trailer(ofmt_ctx);
-	s_inf("av_write_trailer done!!!");
-	outUrl += packPar->oPath.data();				
-	pushPar = new curlPushCliPar();
-	pushPar->mDstPath = outUrl;
-	pushPar->mSrcPath = packPar->oPath;
-	pushPar->userpwd = packPar->userpwd;
-	curlPushUp(pushPar);
-exit:
-	delete packPar;
-    //Close input
-    if(ofmt_ctx && !(ofmt->flags & AVFMT_NOFILE)){
-		avio_close(ofmt_ctx->pb);
-	}
-    avformat_free_context(ofmt_ctx);
-    if(ret<0 && ret != AVERROR_EOF){
-		s_war("avformat_free_context error:%s",av_err2strc(ret));
-        return -1;
-    }s_inf("mediaPackageUp succeed exit!!!");
-	return 0;
-}
+
 int help_info(int argc ,char *argv[]){
 	s_err("%s help:",get_last_name(argv[0]));
 	s_err("\t-s [input fps]");

@@ -99,8 +99,9 @@ int my_popen(const char *fmt,...){
 //  	s_inf("%s",cmd);	
     if ((pfile = popen(cmd, "r"))) {
         fcntl(fileno(pfile), F_SETFD, FD_CLOEXEC);
+		char * res = NULL;
         while(!feof(pfile)) {
-            fgets(buf, sizeof buf, pfile);
+            res = fgets(buf, sizeof buf, pfile);
         }
 //		s_inf("%s",buf);
         status = pclose(pfile);
@@ -361,7 +362,10 @@ int unique_process_lock(char *name){
 	}
 	bzero(buf,sizeof(buf));
 	snprintf(buf,sizeof(buf),"%d",getpid());
-	write(fd,buf,strlen(buf));
+	int res = write(fd,buf,strlen(buf));
+	if(res < strlen(buf)){
+		s_war("Fail to write pidfile");
+	}
 	return 0;
 }
 

@@ -25,6 +25,7 @@ public:
 	void cycWrite(void* one);
 	void clear();
 	size_t getSize();
+	void* get();
 	void setWaitExitState();	
 	~MTQueue();
 };

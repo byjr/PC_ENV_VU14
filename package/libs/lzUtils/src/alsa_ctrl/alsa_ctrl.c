@@ -36,7 +36,7 @@ static int _alsa_ctrl_set_params(alsa_ctrl_t* ptr,alsa_args_t *args){
 		iret = snd_pcm_hw_params_set_access(ptr->handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
 		assert_iret(snd_pcm_hw_params_set_access);
 		
-		iret = snd_pcm_hw_params_set_format(ptr->handle, params, SND_PCM_FORMAT_S16_LE);
+		iret = snd_pcm_hw_params_set_format(ptr->handle, params, args->fmt);
 		assert_iret(snd_pcm_hw_params_set_format);
 		
 		iret = snd_pcm_hw_params_set_channels(ptr->handle, params, args->channels);
@@ -69,7 +69,7 @@ static int _alsa_ctrl_set_params(alsa_ctrl_t* ptr,alsa_args_t *args){
 		iret = snd_pcm_hw_params_get_buffer_size(params, &ptr->buffer_bytes);
 		assert_iret(snd_pcm_hw_params_get_buffer_size);
 		
-		size_t bits_per_sample = snd_pcm_format_physical_width(SND_PCM_FORMAT_S16_LE);		
+		size_t bits_per_sample = snd_pcm_format_physical_width(args->fmt);		
 		ptr->bytes_per_sample = bits_per_sample / 8;
 		ptr->bytes_per_frame = ptr->bytes_per_sample * args->channels;
 		break;
@@ -205,7 +205,7 @@ static int _alsa_ctrl_write_stream(alsa_ctrl_t* ptr,
 		} else if (r == -EPIPE) {
 			snd_pcm_prepare(ptr->handle);
 			r = snd_pcm_recover(ptr->handle, r, 1);
-			s_war("EPIPE, buffer underrun.");
+			s_dbg("EPIPE, buffer underrun.");
 			if ( (r > 0) && (r <= c) ) {
 				r = snd_pcm_writei(ptr->handle, p, r );
 			}
@@ -218,13 +218,13 @@ static int _alsa_ctrl_write_stream(alsa_ctrl_t* ptr,
 			if (r < 0) {
 				if (ptr->abort_flag) break;
 				if ((r = snd_pcm_prepare(ptr->handle)) < 0) {
-					show_errno(-r,"snd_pcm_prepare");
+					s_err("snd_pcm_prepare error: %s", snd_strerror(r));
 					break;
 				}
 				continue;
 			}
 		} else if (r < 0) {
-			show_errno(-r,"snd_pcm_writei");
+			s_err("snd_pcm_writei error: %s", snd_strerror(r));
 			break;
 		}
 		if (r > 0) {

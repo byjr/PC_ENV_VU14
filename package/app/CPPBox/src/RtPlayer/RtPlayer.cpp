@@ -4,7 +4,7 @@ class chunkData{
 	char *data;
 	size_t size;	
 public:
-	chunkData(char *dat,size_t bytes){		
+	chunkData(char *dat,size_t bytes){
 		data = new char[bytes];
 		memcpy(data,dat,bytes);
 		size = bytes;
@@ -45,10 +45,15 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 		s_err("alsa_ctrl_create recorder failed");
 		return ;
 	}
+	isPauseFlag = false;
 	mRecTrd = std::thread([this](){
 		char framesBuf[PERIOD_BYTES];
 		chunkData *chunk;
 		for(;;){
+			if(isPauseFlag){
+				usleep(1000*100);
+				continue;
+			}
 			ssize_t rret = alsa_ctrl_read_stream(mRec,framesBuf,PERIOD_BYTES);
 			if(rret != PERIOD_BYTES){
 				s_err("alsa_ctrl_read failed,reset ...");
@@ -62,9 +67,14 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 			mMTQ->cycWrite(chunk);
 		}
 	});
+	usleep(100*1000);
 	mPlyTrd = std::thread([this](){
 		chunkData *chunk;
 		for(;;){
+			if(isPauseFlag){
+				usleep(1000*100);
+				continue;
+			}			
 			chunk =(chunkData*)mMTQ->read(5);
 			if(!chunk){
 				s_err("exit play thread");
@@ -89,6 +99,18 @@ RtPlayer::~RtPlayer(){
 	alsa_ctrl_destroy(mPly);
 	delete mMTQ;
 }
+void RtPlayer::pause(){
+	isPauseFlag = true;
+	alsa_ctrl_pause(mRec);
+	alsa_ctrl_pause(mPly);
+	mMTQ->clear();
+}
+void RtPlayer::resume(){
+	isPauseFlag = false;
+	alsa_ctrl_resume(mRec);
+	usleep(40*1000);
+	alsa_ctrl_resume(mPly);			
+}
 static int help_info(int argc, char *argv[]){
 	printf("%s help:\n",get_last_name(argv[0]));
 	printf("\t-t [rFifo:wFifo]:use fifo to test logic.\n");
@@ -99,6 +121,23 @@ static int help_info(int argc, char *argv[]){
 	printf("\t-h show help\n");
 	return 0;
 }
+RtPlayer* g_mRtPlayer = NULL;
+static void sig_handle(int sig){
+	static bool isPaused = false;
+	switch(sig){
+	case SIGUSR1:
+		if(isPaused){
+			isPaused = false;
+			g_mRtPlayer->resume();
+		}else{
+			isPaused = true;
+			g_mRtPlayer->pause();
+		}
+		break;
+	default:
+		break;
+	}
+}
 #include <getopt.h>
 int RtPlayer_main(int argc, char *argv[]){
 	alsa_args_t recPar={
@@ -106,12 +145,16 @@ int RtPlayer_main(int argc, char *argv[]){
 		.sample_rate = 48000,
 		.channels 	 = 2,
 		.action 	 = SND_PCM_STREAM_CAPTURE,
+		.flags		 = 0,
+		.fmt		 = SND_PCM_FORMAT_S16_LE,
 	};
 	alsa_args_t plyPar={
 		.device 	 = "plughw:1,1",
 		.sample_rate = 48000,
 		.channels 	 = 2,
 		.action 	 = SND_PCM_STREAM_PLAYBACK,
+		.flags		 = 0,
+		.fmt		 = SND_PCM_FORMAT_S16_LE,
 	};
 	MTQueuePar MTQPar = {
 		.mMax = 100,
@@ -131,6 +174,7 @@ int RtPlayer_main(int argc, char *argv[]){
 			break;
 		case 'o':
 			plyPar.device = optarg;
+			break;
 		case 'm':
 			MTQPar.mMax = atoi(optarg);	
 			break;			
@@ -139,6 +183,7 @@ int RtPlayer_main(int argc, char *argv[]){
 	   }
 	}	
 //打印编译时间
+	signal(SIGUSR1,sig_handle);
 	showCompileTmie(argv[0],s_war);
 	RtPlayerPar mPar = {
 		.pRecPar = &recPar,
@@ -150,7 +195,7 @@ int RtPlayer_main(int argc, char *argv[]){
 		s_err("");
 		return -1;
 	}
-	while(pause());
+	g_mRtPlayer = mRtPlayer;
 	delete mRtPlayer;
 	return -1;
 }

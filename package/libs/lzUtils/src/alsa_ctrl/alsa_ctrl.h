@@ -15,9 +15,10 @@ extern "C" {
 typedef struct alsa_args_t{
 	const char *device;
 	int sample_rate;
-	char channels;
+	char channels;	
 	char action;
 	char flags;
+	int fmt;
 }alsa_args_t;
 
 typedef struct alsa_ctrl_t{

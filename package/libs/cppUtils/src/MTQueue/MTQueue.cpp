@@ -81,6 +81,13 @@ size_t MTQueue::getSize(){
 	std::unique_lock<std::mutex> locker(mu);
 	return q.size();
 }
+void* MTQueue::get(){
+	std::unique_lock<std::mutex> locker(mu);
+	if(q.empty()){
+		return NULL;
+	}
+	return q.back();
+}
 MTQueue::~MTQueue(){
 	q.clear();
 }
