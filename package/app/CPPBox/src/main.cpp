@@ -1,8 +1,12 @@
 #include <lzUtils/base.h>
 #include "main.h"
 int MTQueue_main(int argc,char *argv[]);
+int RePlayer_main(int argc,char *argv[]);
+int RtPlayer_main(int argc,char *argv[]);
 app_item_t item_tbl[]={
 	ADD_APP_ITEM(MTQueue,NULL)
+	ADD_APP_ITEM(RePlayer,NULL)
+	ADD_APP_ITEM(RtPlayer,NULL)
 	{0}
 };
 int main(int argc, char *argv[]){

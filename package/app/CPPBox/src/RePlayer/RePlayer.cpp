@@ -1,39 +1,7 @@
 #include <lzUtils/base.h>
-#include "RtPlayer.h"
-class chunkData{
-	char *data;
-	size_t size;	
-public:
-	chunkData(char *dat,size_t bytes){
-		data = new char[bytes];
-		memcpy(data,dat,bytes);
-		size = bytes;
-	}
-	~chunkData(){
-		delete []data;
-	}
-	char* getData(){
-		return data;
-	}
-	size_t getSize(){
-		return size;
-	}
-	static void destroy(void* one);
-};
-void chunkData::destroy(void* one){
-	auto chunk = (chunkData*)one;
-	if(!chunk){
-		return ;
-	}
-	delete chunk;
-}
-RtPlayer::RtPlayer(RtPlayerPar* par){
+#include "RePlayer.h"
+RePlayer::RePlayer(RePlayerPar* par){
 	mPar = par;
-	mMTQ = new MTQueue(mPar->pMTQPar);
-	if(!mMTQ){
-		s_err("new MTQueue failed");
-		return ;			
-	}
 	s_inf("idev:%s;odev:%s",mPar->pRecPar->device,mPar->pPlyPar->device);
 	mPly = alsa_ctrl_create(mPar->pPlyPar);
 	if(!mPly){
@@ -46,66 +14,42 @@ RtPlayer::RtPlayer(RtPlayerPar* par){
 		return ;
 	}
 	isPauseFlag = false;
-	mRecTrd = std::thread([this](){
+	mTrd = std::thread([this](){
 		char framesBuf[PERIOD_BYTES];
-		chunkData *chunk;
 		for(;;){
 			if(isPauseFlag){
-				usleep(1000*100);
+				usleep(1000*40);
 				continue;
 			}
 			ssize_t rret = alsa_ctrl_read_stream(mRec,framesBuf,PERIOD_BYTES);
 			if(rret != PERIOD_BYTES){
 				s_err("alsa_ctrl_read failed,reset ...");
+				alsa_ctrl_reset(mRec,mPar->pRecPar);
 				continue;
 			}
-			chunk = new chunkData(framesBuf,rret);
-			if(!chunk){
-				s_err("new chunkData failed");
-				continue;
-			}
-			mMTQ->cycWrite(chunk);
-		}
-	});
-	usleep(1000*1000);
-	mPlyTrd = std::thread([this](){
-		chunkData *chunk;
-		for(;;){
-			if(isPauseFlag){
-				usleep(1000*100);
-				continue;
-			}			
-			chunk =(chunkData*)mMTQ->read(5);
-			if(!chunk){
-				s_err("exit play thread");
-				break;
-			}
-			ssize_t wret = alsa_ctrl_write_stream(mPly,chunk->getData(),chunk->getSize());
-			if(wret != chunk->getSize()){
+			ssize_t wret = alsa_ctrl_write_stream(mPly,framesBuf,rret);
+			if(wret != rret){
 				s_err("alsa_ctrl_read failed,reset ...");
+				alsa_ctrl_reset(mPly,mPar->pPlyPar);
 				continue;
 			}
 		}
 	});
 }
-RtPlayer::~RtPlayer(){
-	if(mRecTrd.joinable()){
-		mRecTrd.join();
+RePlayer::~RePlayer(){
+	if(mTrd.joinable()){
+		mTrd.join();
 	}
 	alsa_ctrl_destroy(mRec);		
-	if(mPlyTrd.joinable()){
-		mPlyTrd.join();
-	}
 	alsa_ctrl_destroy(mPly);
-	delete mMTQ;
 }
-void RtPlayer::pause(){
+void RePlayer::pause(){
 	isPauseFlag = true;
 	alsa_ctrl_pause(mRec);
+	usleep(40*1000);
 	alsa_ctrl_pause(mPly);
-	mMTQ->clear();
 }
-void RtPlayer::resume(){
+void RePlayer::resume(){
 	isPauseFlag = false;
 	alsa_ctrl_resume(mRec);
 	usleep(40*1000);
@@ -121,7 +65,7 @@ static int help_info(int argc, char *argv[]){
 	printf("\t-h show help\n");
 	return 0;
 }
-RtPlayer* g_mRtPlayer = NULL;
+static RePlayer* g_mRtPlayer = NULL;
 static void sig_handle(int sig){
 	static bool isPaused = false;
 	switch(sig){
@@ -133,35 +77,28 @@ static void sig_handle(int sig){
 			isPaused = true;
 			g_mRtPlayer->pause();
 		}
+		s_war("isPaused:%d",isPaused?1:0);
 		break;
 	default:
 		break;
 	}
 }
 #include <getopt.h>
-int RtPlayer_main(int argc, char *argv[]){
+int RePlayer_main(int argc, char *argv[]){
 	alsa_args_t recPar={
 		.device 	 = "plughw:0,1,0",
 		.sample_rate = 48000,
 		.channels 	 = 2,
 		.action 	 = SND_PCM_STREAM_CAPTURE,
-		.flags		 = 0,
-		.fmt		 = SND_PCM_FORMAT_S16_LE,
 	};
 	alsa_args_t plyPar={
 		.device 	 = "plughw:1,1",
 		.sample_rate = 48000,
 		.channels 	 = 2,
 		.action 	 = SND_PCM_STREAM_PLAYBACK,
-		.flags		 = 0,
-		.fmt		 = SND_PCM_FORMAT_S16_LE,
-	};
-	MTQueuePar MTQPar = {
-		.mMax = 100,
-		.destroyOne = &chunkData::destroy,
 	};
 	int opt = 0;
-	while ((opt = getopt_long_only(argc, argv, "m:i:o:l:ph",NULL,NULL)) != -1) {
+	while ((opt = getopt_long_only(argc, argv, "i:o:l:ph",NULL,NULL)) != -1) {
 		switch (opt) {
 		case 'l':
 			lzUtils_logInit(optarg,NULL);
@@ -175,9 +112,6 @@ int RtPlayer_main(int argc, char *argv[]){
 		case 'o':
 			plyPar.device = optarg;
 			break;
-		case 'm':
-			MTQPar.mMax = atoi(optarg);	
-			break;			
 		default: /* '?' */
 			return help_info(argc ,argv);
 	   }
@@ -185,12 +119,11 @@ int RtPlayer_main(int argc, char *argv[]){
 //打印编译时间
 	signal(SIGUSR1,sig_handle);
 	showCompileTmie(argv[0],s_war);
-	RtPlayerPar mPar = {
+	RePlayerPar mPar = {
 		.pRecPar = &recPar,
 		.pPlyPar = &plyPar,
-		.pMTQPar = &MTQPar,
 	};
-	RtPlayer* mRtPlayer = new RtPlayer(&mPar);
+	RePlayer* mRtPlayer = new RePlayer(&mPar);
 	if(!mRtPlayer){
 		s_err("");
 		return -1;

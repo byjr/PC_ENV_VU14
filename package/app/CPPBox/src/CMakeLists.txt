@@ -7,6 +7,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Werror -Wfatal-errors -g0 -O
 file(GLOB_RECURSE build_SOURCES
 	"MTQueue/*.cpp"
 	"RtPlayer/*.cpp"
+	"RePlayer/*.cpp"
 	"main.cpp"
 )
 link_libraries(
