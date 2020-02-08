@@ -1,6 +1,3 @@
-#define TEST_PATH "/home/lz/work_space/PC_ENV_VU14/run_dir/jc.mp4"
-
-
 #include <cstring>
 #include <cstdio>
 #include <iostream>
@@ -12,19 +9,19 @@
 #include <future>
 #include <chrono>
 #include <thread>
-
+#include <vector>
 #ifdef DEBUG
 #include <arpa/inet.h>
 #endif
 
 #include <lzUtils/base.h>
-
-#include "WebServer.h"
-
-exten "C"{
-	#include <lzUtils/common/fd_op.h>
+extern "C" {
+#include <lzUtils/common/fp_op.h>
 }
-#define DEFAULT_SERVER_PORT    HTTP_MUSIC_STREAM_PORT
+#include "SockServer.h"
+
+
+#define DEFAULT_SERVER_PORT    10086
 
 #define SOCK_MAX_CONN   64
 #define MAX_HEADER_SIZE 4096
@@ -86,7 +83,6 @@ int TCPSocket::Recv(char * buf, int len) {
     if (select(m_sockfd + 1, &m_readfds, NULL, NULL, &timeout) == -1) {
         return WEBSERVER_ERROR::ERROR_NOT_READABLE;
     }
-
     return recv(m_sockfd, (void *)buf, len, 0);
 }
 
@@ -102,35 +98,101 @@ bool TCPSocket::isReadable() {
     return true;
 }
 
-#define FILE_READ_LEN   (MAX_HEADER_SIZE*4)
-void HttpClient::SendStreaming(const char * filename) {
-	FILE *fp = fopen(filename,"r");
-	if(!fp){
-		s_err("fopen");
-		return ;
-	}
-	char buf[FILE_READ_LEN];
-	do{
-		ssize_t rret = fread(buf,1,FILE_READ_LEN,fp);
-		if(rret <= 0){
-			s_err("rret=%d",rret)
-			continue;
+bool ReqContex::paraParse(std::string &tail){
+	std::string paraStr;
+	bool isParseFinished = false;
+	int idx = tail.find_first_of('&');
+	if(idx < 0){
+		idx = tail.find_first_of(' ');
+		if(idx < 0){
+			idx = tail.find("\r\n\r\n");
 		}
-		char * wi = buf;
-		size_t rem_size = rret ;
-		do{
-			ssize_t wret = Send(wi, rem_size);
-			if(wi <= 0){
-				s_err("wret=%d",wret)
-				continue;
-			}
-			rem_size -= wret;
-			wi += wret;
-		}while(rem_size > 0);
-	}while(!feof(fp));
+		isParseFinished = true;
+	}
+	paraStr = tail.substr(0,idx);
+	ReqParam para;
+	int paraIdx = paraStr.find_first_of('=');
+	if(paraIdx < 0){
+		s_err("para format err('=' is not find).");
+		return false;
+	}
+	para.key = paraStr.substr(0,paraIdx);
+	para.value = paraStr.substr(paraIdx+1);
+	m_params.push_back(para);
+	if(isParseFinished){
+		s_inf("mMethod=%s",mMethod.data());
+		s_inf("mCmd=%s",mCmd.data());
+		return true;
+	}
+	std::string newStr = tail.substr(idx+1);
+	return paraParse(newStr);
+}
+bool ReqContex::parse(std::string &req){
+	std::string tail = req;
+	int idx = tail.find(" /");
+	if(idx < 0){
+		return false;
+	}	
+	mMethod = tail.substr(0,idx);
+	tail = tail.substr(idx+2);
+	idx = tail.find_first_of('?');
+	if(idx < 0){
+		idx = tail.find_first_of(' ');
+		if(idx < 0){
+			idx = tail.find("\r\n\r\n");
+			mCmd = tail.substr(0,idx);
+			return true;
+		}
+		mCmd = tail.substr(0,idx);
+		return true;
+	}
+	mCmd = tail.substr(0,idx);
+	std::string newStr = tail.substr(idx+1);
+	return paraParse(newStr);
 }
 
-void HttpClient::ResponseMimeType(const char *mimeType) {
+void SockClient::HandleResponse(std::string &req) {
+	ReqContex reqCtx;
+	if(!reqCtx.parse(req)){
+		ResponseText("urlParseErr");
+		s_err("url_parse_err");
+		return;
+	}
+	s_war("method=%s",reqCtx.mMethod.data());
+	s_war("cmd=%s",reqCtx.mCmd.data());
+	for(auto para:reqCtx.m_params){
+		s_war("key=%s",para.key.data());
+		s_war("value=%s",para.value.data());
+	}
+	if(reqCtx.mMethod.compare("GET")==0){
+		if(reqCtx.mCmd.compare("getVideo")==0){
+			size_t pids = get_pids_by_name("req_process.sh",NULL,1);
+			if(pids > 0){
+				ResponseText("serverRecording");
+				s_err("serverRecording cancle!");
+				return ;
+			}
+			std::string url,time;
+			for(auto para:reqCtx.m_params){
+				if(para.key.compare("ftp")==0){
+					url = para.value.data();
+				}
+				if(para.key.compare("time")==0){
+					time = para.value.data();
+				}			
+			}
+			s_inf("/root/bin/req_process.sh -u %s -t %s -r",url.data(),time.data());			
+			// getCmdResult("/root/bin/req_process.sh -u %s -t %s -r",url.data(),time.data());
+			s_inf("reqProcessDone");
+		}else if(reqCtx.mCmd.find(".264")!=std::string::npos){
+			ResponseMime(reqCtx);
+			SendStreaming(reqCtx);
+			s_inf("%s send dine!",reqCtx.mCmd.data());
+		}
+	}
+}
+
+void SockClient::ResponseMime(ReqContex& reqCtx) {
     stringstream responseString;
 
     time_t ts = time(NULL);
@@ -141,11 +203,11 @@ void HttpClient::ResponseMimeType(const char *mimeType) {
     responseString << "HTTP/1.1 200 OK\r\n";
     responseString << "Accept-Ranges: bytes\r\n";
     responseString << "Date: " << strDate << "\r\n";
-    responseString << "Content-Type: " << mimeType << "\r\n";
-	size_t bytes = 0;
-	int ret = path_get_size(&bytes,TEST_PATH);
-	if(ret < 0){
-		s_err("path_get_size failed!");		
+    responseString << "Content-Type: " << "application/octet-stream" << "\r\n";
+	size_t bytes = get_size_by_path(reqCtx.mCmd.data());
+	if(bytes <= 0){
+		s_war("get_size_by_path failed,set Content-Length to -1 .");
+		bytes = -1;
 	}
 	responseString << "Content-Length: " << bytes << "\r\n\r\n";
     string strBuf = responseString.str();
@@ -164,128 +226,150 @@ void HttpClient::ResponseMimeType(const char *mimeType) {
         totalLen -= sendLen;
     }
 }
-
-void HttpClient::Response404() {
-    stringstream responseString;
-
-    responseString << "HTTP/1.1 404 Not Found\r\n";
-    responseString << "Connection: Closed\r\n";
-    responseString << "content-type: text/html; charset=UTF-8\r\n\r\n";
-    responseString << "<html><head><title>404 Not Found</title></head><body><h1>Not Found</h1></body></html>";
-
+void SockClient::SendStreaming(ReqContex& reqCtx) {
+	#define FILE_READ_LEN (16*1024)
+	FILE *fp = fopen(reqCtx.mCmd.data(),"r");
+	if(!fp){
+		s_inf(reqCtx.mCmd.data());
+		show_errno(0,"fopen");
+		return ;
+	}
+	char buf[FILE_READ_LEN];
+	do{
+		ssize_t rret = fread(buf,1,FILE_READ_LEN,fp);
+		if(rret <= 0){
+			s_war("fread rret=%d",rret);
+			continue;
+		}
+		char * wi = buf;
+		size_t rem_size = rret ;
+		do{
+			ssize_t wret = Send(wi, rem_size);
+			if(wi <= 0){
+				s_err("wret=%d",wret)
+				continue;
+			}
+			rem_size -= wret;
+			wi += wret;
+		}while(rem_size > 0);
+	}while(!feof(fp));
+	fclose(fp);
+}
+void SockClient::ResponseText(const char* txt){
+	stringstream responseString;
+	responseString << "serverReply";
+	responseString << "?status=";
+	responseString << txt;
+	responseString << "\r\n\r\n";
     string strBuf = responseString.str();
     int totalLen = strBuf.length();
     const char *sendBuf = strBuf.c_str();
-
     int sendIdx = 0;
     int sendLen = 0;
-
     while (totalLen > 0) {
         sendLen = Send(&sendBuf[sendIdx], totalLen);
         if (sendLen <= 0)
             break;
-
         sendIdx += sendLen;
         totalLen -= sendLen;
-    }
-
+    }	
 }
-
-bool HttpClient::SearchHeaderEnd(char *searchBuf, int endIdx) {
-    int i = endIdx - 4;
-    if (i < 0)
-        return false;
-    if (searchBuf[i] == '\r' && searchBuf[i+1] == '\n' &&
-        searchBuf[i+2] == '\r' && searchBuf[i+3] == '\n') {
-        return true;
-    }
-    return false;
-}
-
-void HttpClient::HandleResponse(const char * requestHeader) {
-	s_inf("%s:requestHeader:%s",__func__,requestHeader)
-    char *ptr = strstr((char*)requestHeader, "GET /");
-	if(!ptr){
-		Response404();
-		return;
+bool SockClient::cmdResultParse(std::string& res){
+	int idx = res.find("recStarted");
+	if(idx >= 0){
+		ResponseText("recStarted");
+		s_inf("recStarted");
 	}
-    ptr += strlen("GET /");
-	
-    struct mimetype *m = &supported_mime_types[0];
-
-    int testIdx = 0;
-    int streamType = STREAM_NONE;
-    while (m->extn) {
-        if(strncmp(ptr, m->extn, strlen(m->extn)) == 0) {
-            streamType = m->stream_type;
-            break;
-        }
-        m++;
-        testIdx++;
-    }
-    if (!m->extn) {
-        Response404();
-        return;
-    }
-
-	s_inf("%s:mimeType=%s",m->mime);
-    ResponseMimeType(m->mime);
-
-	if (streamType == STREAM_ATTACHMENT) {
-        SendStreaming(TEST_PATH);
-    } else {
-		s_err("%s:readerNotSet",__func__)
-        Response404();
-    }
+	idx = res.find("cvtFailed");
+	if(idx >= 0){
+		ResponseText("cvtFailed");
+		s_err("cvtFailed");
+	}
+	idx = res.find("upSucceed");
+	if(idx >= 0){
+		ResponseText("upSucceed");
+		s_inf("upSucceed");		
+	}
+	idx = res.find("upFailed");
+	if(idx >= 0){
+		ResponseText("upFailed");
+		s_err("upFailed");
+	}
+	return false;
+}
+std::string SockClient::getCmdResult(const char *fmt, ...){
+	va_list args;
+	va_start(args, (char *)fmt);
+	char *cmd = NULL;
+	vasprintf(&cmd, fmt, args);
+	va_end(args);
+	FILE *fp = popen(cmd,"r");
+	if(!fp){
+		s_err("popen");
+		return "";
+	}
+	fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
+	string cmdRes;
+	do{
+		char buf[1024]="";
+		char *res = fgets(buf,sizeof(buf),fp);
+		if(!res){
+			break;
+		}
+		cmdRes += buf;
+		cmdResultParse(cmdRes);
+	}while(!feof(fp));
+	fclose(fp);
+	if(cmd)free(cmd);
+	return cmdRes;
 }
 
-void HttpClient::HandleRequestThread() {
-    char recvBuf[MAX_HEADER_SIZE];
-    memset(recvBuf, 0, sizeof(recvBuf));
-    int totalSize = MAX_HEADER_SIZE - 1;
-    int recvSize = 0;
-    int recvIdx = 0;
-    bool bFoundEnd = false;
-    while((bFoundEnd = SearchHeaderEnd(recvBuf, recvIdx)) == false && totalSize > 0) {
-        recvSize = Recv(&recvBuf[recvIdx], totalSize);
-        if(recvSize <= 0)
-            break;
-        recvIdx += recvSize;
-        totalSize -= recvSize;
-    }
-
-    if(recvSize <= 0) {
-		show_errno(0,"recvFailed");
-        return;
-    }
-	
-    if(m_exitWork) {
-        return;
-    }
-
-    if(bFoundEnd == false) {
-        Response404();
-    } else {
-        HandleResponse(recvBuf);
-    }
-    m_responseStep = RESPONSE_FINISH;
-    closeSocket();
-}
-
-void HttpClient::Stop() {
+void SockClient::Stop() {
     m_exitWork = true;
     if(m_threadResponse.joinable()) {
         m_threadResponse.join();
     }
 }
 
-bool HttpClient::HandleRequest() {
+bool SockClient::HandleRequest() {
     m_responseStep = RESPONSE_START;
-    m_threadResponse = thread(&HttpClient::HandleRequestThread, this);
+	m_threadResponse = std::thread([this]() {
+		std::string req;
+		char buf[1024]="";
+		bool is_find_corect_end = false;
+		for(int i = 0; i< 50;i++){
+			memset(buf,0,sizeof(buf));
+			int res = Recv(buf,sizeof(buf));
+			if(res > 0){
+				req += buf;
+			}
+			res = req.find("\r\n\r\n");
+			if(res >= 0){
+				s_inf("find out the http end!");			
+				is_find_corect_end = true;
+				break;
+			}
+		}
+		if(req.size() < 16){
+			return;
+		}
+		if(!is_find_corect_end){
+			s_err("can't find http end!");
+			ResponseText("getUrlErr");
+			return;
+		}
+		if(m_exitWork) {
+			ResponseText("serverExit");
+			return;
+		}	
+		HandleResponse(req);
+		m_responseStep = RESPONSE_FINISH;
+		closeSocket();
+	});
     return true;
 }
 
-int WebServer::Bind() {s_inf(__func__);
+int SocServer::Bind() {
     int ret = WEBSERVER_ERROR::NO_ERROR;
     int yes = 1;
     char addr_service[8] = {0};
@@ -313,8 +397,7 @@ int WebServer::Bind() {s_inf(__func__);
             continue;
 
         /* "address already in use" */
-        if( setsockopt(m_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1 )
-        {
+        if( setsockopt(m_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1 ) {
 			show_errno(0,__func__);
             break;
         }
@@ -337,16 +420,14 @@ int WebServer::Bind() {s_inf(__func__);
     return ret;
 }
 
-int WebServer::Listen() {
+int SocServer::Listen() {
     if (listen(m_sockfd, SOCK_MAX_CONN) != 0)
         return WEBSERVER_ERROR::ERROR_LISTEN;
 
     return WEBSERVER_ERROR::NO_ERROR;
 }
 
-
-
-int WebServer::Run() {
+int SocServer::Run() {
     int ret = WEBSERVER_ERROR::NO_ERROR;
     ret = Bind();
     if (ret != WEBSERVER_ERROR::NO_ERROR) {
@@ -387,16 +468,15 @@ int WebServer::Run() {
         if (FD_ISSET(m_sockfd, &tmp_fd)) {
             // server part
             if ((client_sockfd = accept(m_sockfd, NULL, 0)) != -1) {
-                HttpClient *newClient = new HttpClient(client_sockfd);
+                SockClient *newClient = new SockClient(client_sockfd);
                 m_clients.push_back(newClient);
                 FD_SET(client_sockfd, &m_readfds);
                 max_sockfd = max(max_sockfd, client_sockfd);
             }
         } else {
-            list<HttpClient*>::iterator it = m_clients.begin();
+            list<SockClient*>::iterator it = m_clients.begin();
             for (; it != m_clients.end(); ++it) {
                 if ((*it)->IsWaitingRequest() && (*it)->isReadable()) {
-					s_inf("%s:GetSocketFD=%d",__func__,(*it)->GetSocketFD());
                     FD_CLR((*it)->GetSocketFD(), &m_readfds);
                     (*it)->HandleRequest();
                 }
@@ -415,13 +495,13 @@ int WebServer::Run() {
     return 0;
 }
 
-void WebServer::Stop() {
+void SocServer::Stop() {
     m_exitWork = true;
     if (m_mainLoopThread.joinable()) {
         m_mainLoopThread.join();
     }
 
-    list<HttpClient*>::iterator it = m_clients.begin();
+    list<SockClient*>::iterator it = m_clients.begin();
     for (;it != m_clients.end(); ++it) {
         (*it)->Stop();
         delete (*it);
@@ -433,23 +513,27 @@ void WebServer::Stop() {
         m_sockfd = -1;
     }
 }
-WebServer::~WebServer(){
+SocServer::~SocServer(){
 	
 }
-WebServer::WebServer() {s_trc(__func__);
+SocServer::SocServer() {s_trc(__func__);
     if (m_bindPort == 0) {
-        m_bindPort = DEFAULT_SERVER_PORT;
+        m_bindPort = 10086;
     }
-    m_mainLoopThread = thread(&WebServer::Run, this);
+    m_mainLoopThread = thread(&SocServer::Run, this);
 }
-int help_info(int argc ,char *argv[]){
+static int help_info(int argc ,char *argv[]){
+	printf("%s help:\n",get_last_name(argv[0]));
+	printf("\t-r [share path]\n");
+	printf("\t-l [logLvCtrl]\n");
+	printf("\t-p [logPath]\n");
+	printf("\t-h show help\n");
 	return 0;
 }
 #include <getopt.h>
 int main(int argc,char *argv[]){
 	int opt = 0;
-	char * recDdevide=NULL,* plyDdevide=NULL;
-	while ((opt = getopt_long_only(argc, argv, "i:o:l:p:dh",NULL,NULL)) != -1) {
+	while ((opt = getopt_long_only(argc, argv, "r:l:p:dh",NULL,NULL)) != -1) {
 		switch (opt) {
 		case 'l':
 			lzUtils_logInit(optarg,NULL);
@@ -457,11 +541,8 @@ int main(int argc,char *argv[]){
 		case 'p':
 			lzUtils_logInit(NULL,optarg);
 			break;
-		case 'i':
-			recDdevide=optarg;
-			break;
-		case 'o':
-			plyDdevide=optarg;
+		case 'r':
+			// resouce_path=optarg;
 			break;
 		default: /* '?' */
 			return help_info(argc ,argv);
@@ -470,7 +551,7 @@ int main(int argc,char *argv[]){
 //打印编译时间
 	showCompileTmie(argv[0],s_war);
 	
-	WebServer * webaerv = new WebServer();
+	SocServer * webaerv = new SocServer();
 	if(!webaerv){
 		return -1;
 	}

@@ -13,7 +13,8 @@
 int fp_write_file(char *path,char *data,char *mode);
 int fp_copy_file(char* dst_path,char *src_path);
 int fp_read_file(char **pData,char *path,char *mode);
-unsigned get_path_size(char *path);
+unsigned get_path_size(const char *path);
+unsigned get_size_by_path(const char *path);
 // size_t f_get_string(char *path,char *buf,size_t size);
 
 #define fd_open(path,flags,mode) ({\

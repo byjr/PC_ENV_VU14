@@ -1,6 +1,13 @@
 #include "fp_op.h"
 
-unsigned get_path_size(char *path){
+unsigned get_size_by_path(const char *path){
+	struct stat lstat={0};
+	int ret=stat(path,&lstat);
+	if(ret<0)return -1;
+	return lstat.st_size;
+}
+
+unsigned get_path_size(const char *path){
     unsigned filesize = -1;  
     FILE *fp;  
     fp = fopen(path, "r");  

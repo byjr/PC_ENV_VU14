@@ -128,6 +128,7 @@ int unlink(const char *path);//删除连接数
 })
 //fdopen fd->fp
 //fileno fp->fd
+int path_get_size(size_t *p_size,char *path);
 size_t fd_get_size(int fd);
 int fd_read_file(char **p_buf,char *path);
 char *fd_mmap_for_read(const char *path,size_t* _bytes);

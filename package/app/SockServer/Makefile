@@ -2,8 +2,7 @@ ifneq ($(TOP_DIR),)
 include $(TOP_DIR)/include/package.mk
 endif
 
-PACKAGE_DEPS_LIST	:= \
-	package/libs/lzUtils
+PACKAGE_DEPS_LIST	:= 
 	
 PACKAGE_VER		:= v1.0.0
 	
