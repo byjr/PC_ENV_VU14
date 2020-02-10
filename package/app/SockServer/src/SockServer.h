@@ -62,7 +62,7 @@ class SockClient : public TCPSocket {
     };
 private:
     std::shared_ptr<std::istream> m_stream;
-    std::thread m_threadResponse;
+    std::thread mHhanleThred;
     int m_responseStep;
 
 public:
@@ -77,6 +77,7 @@ public:
 	std::string getCmdResult(const char *fmt, ...);
 	bool cmdResultParse(std::string& res);
 	void ResponseMime(ReqContex& reqCtx);
+	bool SendOneStream(ReqContex& reqCtx);
 	void SendStreaming(ReqContex& reqCtx);
 	void ResponseText(const char* txt);	
 	void HandleResponse(std::string &req) ;

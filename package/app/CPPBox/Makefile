@@ -23,9 +23,11 @@ clean:
 	
 install:build
 	make -C $(BUILD_DIR) install
-	ln -sf $(TARGET) $(STAGING_DIR)/bin/MTQueue
-	ln -sf $(TARGET) $(STAGING_DIR)/bin/RtPlayer
-	ln -sf $(TARGET) $(STAGING_DIR)/bin/RePlayer
+	# ln -sf $(TARGET) $(STAGING_DIR)/bin/MTQueue
+	# ln -sf $(TARGET) $(STAGING_DIR)/bin/RtPlayer
+	# ln -sf $(TARGET) $(STAGING_DIR)/bin/RePlayer
+	ln -sf $(TARGET) $(STAGING_DIR)/bin/BinSplit
+	BinSplit -l1111
 uninstall:
 	rm -rf $(STAGING_DIR)/bin/$(TARGET)
 	

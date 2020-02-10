@@ -26,7 +26,18 @@ extern "C" {
 #define SOCK_MAX_CONN   64
 #define MAX_HEADER_SIZE 4096
 #define SEND_LEN        4096
-
+static char g_BreakenPipeFlag = 0;
+bool IsRcvBreakenPipe(){
+	bool isRcvBreakenPipe = false;
+	if(g_BreakenPipeFlag){
+		g_BreakenPipeFlag = 0;
+		isRcvBreakenPipe = true;
+	}
+	return isRcvBreakenPipe;
+}
+static void setBreakenPipe(){
+	g_BreakenPipeFlag  = 1;
+}
 using namespace std;
 
 TCPSocket::~TCPSocket() {s_trc(__func__);
@@ -66,7 +77,7 @@ int TCPSocket::Send(const char * buf, int len) {
 
     if (select(m_sockfd + 1, NULL, &m_writefds, NULL, &timeout) <= 0) {
         return WEBSERVER_ERROR::ERROR_NOT_WRITEABLE;
-    }
+    }	
     return send(m_sockfd, (void*)buf, len, 0);
 }
 
@@ -227,23 +238,27 @@ void SockClient::ResponseMime(ReqContex& reqCtx) {
     }
 }
 void SockClient::SendStreaming(ReqContex& reqCtx) {
+	for(;!m_exitWork;){
+		SendOneStream(reqCtx);
+	}	
+}
+bool SockClient::SendOneStream(ReqContex& reqCtx) {
 	#define FILE_READ_LEN (16*1024)
 	FILE *fp = fopen(reqCtx.mCmd.data(),"r");
 	if(!fp){
 		s_inf(reqCtx.mCmd.data());
 		show_errno(0,"fopen");
-		return ;
+		return false;
 	}
 	char buf[FILE_READ_LEN];
 	do{
 		ssize_t rret = fread(buf,1,FILE_READ_LEN,fp);
 		if(rret <= 0){
-			s_war("fread rret=%d",rret);
+			usleep(100*1000);
 			continue;
 		}
 		char * wi = buf;
 		size_t rem_size = rret ;
-		do{
 			ssize_t wret = Send(wi, rem_size);
 			if(wi <= 0){
 				s_err("wret=%d",wret)
@@ -254,6 +269,8 @@ void SockClient::SendStreaming(ReqContex& reqCtx) {
 		}while(rem_size > 0);
 	}while(!feof(fp));
 	fclose(fp);
+	s_war("SendOneStream done");
+	return true;
 }
 void SockClient::ResponseText(const char* txt){
 	stringstream responseString;
@@ -326,14 +343,15 @@ std::string SockClient::getCmdResult(const char *fmt, ...){
 
 void SockClient::Stop() {
     m_exitWork = true;
-    if(m_threadResponse.joinable()) {
-        m_threadResponse.join();
+    if(mHhanleThred.joinable()) {
+        mHhanleThred.join();
     }
 }
 
 bool SockClient::HandleRequest() {
     m_responseStep = RESPONSE_START;
-	m_threadResponse = std::thread([this]() {
+	mHhanleThred = std::thread([this]() {
+		pthread_setname_np(pthread_self(),"reqhandle");	
 		std::string req;
 		char buf[1024]="";
 		bool is_find_corect_end = false;
@@ -365,7 +383,7 @@ bool SockClient::HandleRequest() {
 		HandleResponse(req);
 		m_responseStep = RESPONSE_FINISH;
 		closeSocket();
-	});
+	});	
     return true;
 }
 
@@ -428,6 +446,7 @@ int SocServer::Listen() {
 }
 
 int SocServer::Run() {
+	pthread_setname_np(pthread_self(),"mainLoop");	
     int ret = WEBSERVER_ERROR::NO_ERROR;
     ret = Bind();
     if (ret != WEBSERVER_ERROR::NO_ERROR) {
@@ -513,6 +532,7 @@ void SocServer::Stop() {
         m_sockfd = -1;
     }
 }
+
 SocServer::~SocServer(){
 	
 }
@@ -529,6 +549,10 @@ static int help_info(int argc ,char *argv[]){
 	printf("\t-p [logPath]\n");
 	printf("\t-h show help\n");
 	return 0;
+}
+static  void pipeProcess(int sig){
+	err_nl(__func__);
+	setBreakenPipe();
 }
 #include <getopt.h>
 int main(int argc,char *argv[]){
@@ -550,7 +574,8 @@ int main(int argc,char *argv[]){
 	}	
 //打印编译时间
 	showCompileTmie(argv[0],s_war);
-	
+	// signal(SIGPIPE,&pipeProcess);
+	signal(SIGPIPE,SIG_IGN);
 	SocServer * webaerv = new SocServer();
 	if(!webaerv){
 		return -1;

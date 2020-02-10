@@ -1,6 +1,6 @@
 #ifndef __MISC_H__
 #define __MISC_H__ 1
-
+#include <sys/syscall.h>
 #define MAX_USER_COMMAND_LEN	 2048
 
 #define FREE(x) if(x){free(x);x=NULL;}
